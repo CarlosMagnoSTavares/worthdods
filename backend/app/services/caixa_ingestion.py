@@ -35,7 +35,10 @@ async def sync_uf(uf: str) -> dict:
                 logger.warning(f"CSV {uf}: status {resp.status_code}")
                 stats["erros"] = 1
                 return stats
-            content = resp.content.decode("utf-8-sig", errors="replace")
+            try:
+                content = resp.content.decode("utf-8-sig")
+            except UnicodeDecodeError:
+                content = resp.content.decode("latin-1")
     except Exception as e:
         logger.error(f"Erro download CSV {uf}: {e}")
         stats["erros"] = 1

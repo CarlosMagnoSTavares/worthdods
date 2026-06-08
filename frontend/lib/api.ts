@@ -38,10 +38,11 @@ export const api = {
 
     stats: () => apiFetch<Record<string, unknown>>("/properties/stats"),
 
-    analyze: (id: string): Promise<{ message: string; status: string }> =>
+    analyze: (id: string): Promise<{ message: string; status: string; analyses?: unknown[]; legal_checks?: unknown[] }> =>
       apiFetch(`/properties/${id}/analyze`, { method: "POST" }),
 
-    getAnalysis: (id: string) => apiFetch(`/properties/${id}/analysis`),
+    getAnalysis: (id: string): Promise<{ property_id: string; analyses: unknown[]; legal_checks: unknown[]; has_analysis: boolean; is_processing: boolean }> =>
+      apiFetch(`/properties/${id}/analysis`),
 
     getLegal: (id: string) => apiFetch(`/properties/${id}/legal`),
   },

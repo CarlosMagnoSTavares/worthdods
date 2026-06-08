@@ -152,10 +152,13 @@ async def trigger_analysis(property_id: str, background_tasks: BackgroundTasks):
                 for r in existing.data
             )
             if datetime.now(timezone.utc) - last < timedelta(hours=6):
+                legal = supabase.table("legal_checks").select("*").eq("property_id", property_id).execute()
                 return {
                     "message": "Análise recente já disponível",
                     "property_id": property_id,
                     "status": "cached",
+                    "analyses": existing.data,
+                    "legal_checks": legal.data or [],
                 }
         except Exception:
             pass

@@ -7,6 +7,7 @@ import { IplBadge } from "@/components/IplBadge";
 import { RiskFlags } from "@/components/RiskFlags";
 import { AnalysisPanel } from "@/components/AnalysisPanel";
 import { formatBRL, formatPercent, formatDate } from "@/lib/utils";
+import { useNotifications } from "@/lib/notifications";
 import type { PropertyDetail, Analysis, LegalCheck } from "@/types";
 
 interface PageProps {
@@ -19,7 +20,9 @@ export default function ImovelPage({ params }: PageProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analyzeMsg, setAnalyzeMsg] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"resumo" | "analise" | "juridico">("resumo");
+  const { addNotification } = useNotifications();
 
   useEffect(() => {
     loadProperty();
@@ -30,6 +33,10 @@ export default function ImovelPage({ params }: PageProps) {
     try {
       const data = await api.properties.get(id);
       setProperty(data);
+      // Switch to analise tab automatically if analyses exist
+      if (data.analyses && data.analyses.length > 0) {
+        setActiveTab("analise");
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro ao carregar imóvel");
     } finally {
@@ -38,16 +45,50 @@ export default function ImovelPage({ params }: PageProps) {
   }
 
   async function handleAnalyze() {
-    if (!property) return;
+    if (!property || isAnalyzing) return;
+
+    // Already have analysis → just switch to tab (re-use)
+    if (property.analyses && property.analyses.length > 0) {
+      setActiveTab("analise");
+      setAnalyzeMsg("Análise já disponível — exibindo resultados salvos.");
+      setTimeout(() => setAnalyzeMsg(null), 4000);
+      return;
+    }
+
     setIsAnalyzing(true);
+    setAnalyzeMsg(null);
+
     try {
-      await api.properties.analyze(id);
-      // Poll após 30s
-      setTimeout(async () => {
-        await loadProperty();
-        setIsAnalyzing(false);
-      }, 30000);
-    } catch (e) {
+      const result = await api.properties.analyze(id) as {
+        status: string;
+        analyses?: Analysis[];
+        message?: string;
+      };
+
+      if (result.status === "cached" && result.analyses && result.analyses.length > 0) {
+        // Server has cached analysis — inject directly, no need to re-fetch
+        setProperty((prev) =>
+          prev ? { ...prev, analyses: result.analyses! } : prev
+        );
+        setActiveTab("analise");
+        setAnalyzeMsg("Análise já disponível — carregada do cache.");
+        setTimeout(() => setAnalyzeMsg(null), 4000);
+      } else {
+        // Processing in background — register notification
+        addNotification({
+          propertyId: id,
+          propertyAddress: property.endereco,
+          cidade: `${property.cidade} – ${property.uf}`,
+          status: "processing",
+        });
+        setActiveTab("analise");
+        setAnalyzeMsg("Análise enviada para fila — você será notificado quando concluir. 🔔");
+        setTimeout(() => setAnalyzeMsg(null), 8000);
+      }
+    } catch {
+      setAnalyzeMsg("Erro ao solicitar análise. Tente novamente.");
+      setTimeout(() => setAnalyzeMsg(null), 5000);
+    } finally {
       setIsAnalyzing(false);
     }
   }
@@ -91,6 +132,20 @@ export default function ImovelPage({ params }: PageProps) {
         {" / "}
         <span>{property.cidade} – {property.uf}</span>
       </nav>
+
+      {/* Mensagem de feedback */}
+      {analyzeMsg && (
+        <div
+          className="mb-4 px-4 py-3 rounded-lg text-sm font-medium flex items-center gap-2 border"
+          style={{
+            background: analyzeMsg.includes("Erro") ? "#fff5f5" : "#f0faf4",
+            borderColor: analyzeMsg.includes("Erro") ? "#e57373" : "#4caf82",
+            color: analyzeMsg.includes("Erro") ? "var(--red)" : "#1a6b3c",
+          }}
+        >
+          {analyzeMsg.includes("Erro") ? "⚠️" : "ℹ️"} {analyzeMsg}
+        </div>
+      )}
 
       {/* Header do imóvel */}
       <div
@@ -139,10 +194,7 @@ export default function ImovelPage({ params }: PageProps) {
         {/* Coluna principal (2/3) */}
         <div className="lg:col-span-2 space-y-6">
           {/* Tabs */}
-          <div
-            className="flex border-b"
-            style={{ borderColor: "var(--border)" }}
-          >
+          <div className="flex border-b" style={{ borderColor: "var(--border)" }}>
             {(["resumo", "analise", "juridico"] as const).map((tab) => (
               <button
                 key={tab}
@@ -154,6 +206,14 @@ export default function ImovelPage({ params }: PageProps) {
                 }}
               >
                 {tab === "resumo" ? "📊 Resumo" : tab === "analise" ? "🤖 Análise IA" : "⚖️ Jurídico"}
+                {tab === "analise" && property.analyses?.length > 0 && (
+                  <span
+                    className="ml-1.5 text-xs px-1.5 py-0.5 rounded-full"
+                    style={{ background: "var(--gold-pale)", color: "var(--gold)" }}
+                  >
+                    ✓
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -161,7 +221,6 @@ export default function ImovelPage({ params }: PageProps) {
           {/* Tab: Resumo */}
           {activeTab === "resumo" && (
             <div className="space-y-5">
-              {/* Cards de valores */}
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 {[
                   {
@@ -181,10 +240,9 @@ export default function ImovelPage({ params }: PageProps) {
                   },
                   {
                     label: "Spread Bruto",
-                    value:
-                      property.valor_avaliacao
-                        ? formatBRL(property.valor_avaliacao - property.preco)
-                        : "—",
+                    value: property.valor_avaliacao
+                      ? formatBRL(property.valor_avaliacao - property.preco)
+                      : "—",
                     color: "var(--green)",
                     accent: "#1a6b3c",
                   },
@@ -192,11 +250,7 @@ export default function ImovelPage({ params }: PageProps) {
                   <div
                     key={c.label}
                     className="rounded-xl p-4 border relative"
-                    style={{
-                      background: "#fff",
-                      borderColor: "var(--border)",
-                      borderTop: `4px solid ${c.accent}`,
-                    }}
+                    style={{ background: "#fff", borderColor: "var(--border)", borderTop: `4px solid ${c.accent}` }}
                   >
                     <div className="text-xs uppercase tracking-wider mb-1" style={{ color: "var(--mid)" }}>
                       {c.label}
@@ -216,15 +270,8 @@ export default function ImovelPage({ params }: PageProps) {
                 ))}
               </div>
 
-              {/* Ficha técnica */}
-              <div
-                className="rounded-xl overflow-hidden border"
-                style={{ borderColor: "var(--border)" }}
-              >
-                <div
-                  className="px-4 py-3 text-sm font-semibold"
-                  style={{ background: "var(--ink)", color: "var(--paper)" }}
-                >
+              <div className="rounded-xl overflow-hidden border" style={{ borderColor: "var(--border)" }}>
+                <div className="px-4 py-3 text-sm font-semibold" style={{ background: "var(--ink)", color: "var(--paper)" }}>
                   Ficha Técnica
                 </div>
                 <table className="w-full">
@@ -241,11 +288,7 @@ export default function ImovelPage({ params }: PageProps) {
                       ["Aceita FGTS", property.aceita_fgts ? "Sim" : "Não"],
                       ["Aceita Financiamento", property.aceita_financiamento ? "Sim" : "Não"],
                     ].map(([label, value]) => (
-                      <tr
-                        key={label}
-                        className="border-b last:border-b-0"
-                        style={{ borderColor: "var(--cream)" }}
-                      >
+                      <tr key={label} className="border-b last:border-b-0" style={{ borderColor: "var(--cream)" }}>
                         <td
                           className="px-4 py-2.5 text-xs uppercase tracking-wider w-2/5"
                           style={{ background: "var(--cream)", color: "var(--mid)" }}
@@ -261,15 +304,10 @@ export default function ImovelPage({ params }: PageProps) {
                 </table>
               </div>
 
-              {/* Descrição */}
               {property.descricao && (
                 <div
                   className="rounded-xl p-4 border text-sm"
-                  style={{
-                    background: "#fff",
-                    borderColor: "var(--border)",
-                    color: "var(--mid)",
-                  }}
+                  style={{ background: "#fff", borderColor: "var(--border)", color: "var(--mid)" }}
                 >
                   <div className="text-xs uppercase tracking-wider font-semibold mb-2" style={{ color: "var(--mid)" }}>
                     Descrição
@@ -292,10 +330,7 @@ export default function ImovelPage({ params }: PageProps) {
           {/* Tab: Jurídico */}
           {activeTab === "juridico" && (
             <div className="space-y-4">
-              <div
-                className="rounded-xl border p-5"
-                style={{ background: "#fff", borderColor: "var(--border)" }}
-              >
+              <div className="rounded-xl border p-5" style={{ background: "#fff", borderColor: "var(--border)" }}>
                 <h3 className="font-serif text-lg mb-4" style={{ color: "var(--ink)" }}>
                   Processos Judiciais — CNJ Datajud
                 </h3>
@@ -326,14 +361,10 @@ export default function ImovelPage({ params }: PageProps) {
                           {check.numero_processo}
                         </p>
                         {check.classe_processual && (
-                          <p className="text-xs mt-0.5" style={{ color: "var(--mid)" }}>
-                            {check.classe_processual}
-                          </p>
+                          <p className="text-xs mt-0.5" style={{ color: "var(--mid)" }}>{check.classe_processual}</p>
                         )}
                         {check.assunto && (
-                          <p className="text-xs mt-0.5 line-clamp-2" style={{ color: "var(--mid)" }}>
-                            {check.assunto}
-                          </p>
+                          <p className="text-xs mt-0.5 line-clamp-2" style={{ color: "var(--mid)" }}>{check.assunto}</p>
                         )}
                       </div>
                     ))}
@@ -341,47 +372,29 @@ export default function ImovelPage({ params }: PageProps) {
                 )}
               </div>
 
-              {/* Links de documentos */}
-              <div
-                className="rounded-xl border p-5"
-                style={{ background: "#fff", borderColor: "var(--border)" }}
-              >
-                <h3 className="font-serif text-lg mb-4" style={{ color: "var(--ink)" }}>
-                  Documentos
-                </h3>
+              <div className="rounded-xl border p-5" style={{ background: "#fff", borderColor: "var(--border)" }}>
+                <h3 className="font-serif text-lg mb-4" style={{ color: "var(--ink)" }}>Documentos</h3>
                 <div className="space-y-2">
                   {property.url_matricula && (
-                    <a
-                      href={property.url_matricula}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <a href={property.url_matricula} target="_blank" rel="noopener noreferrer"
                       className="flex items-center gap-2 text-sm p-3 rounded-lg border hover:bg-gray-50 transition-colors"
-                      style={{ borderColor: "var(--border)", color: "var(--gold)" }}
-                    >
+                      style={{ borderColor: "var(--border)", color: "var(--gold)" }}>
                       📄 Matrícula do Imóvel (PDF)
                       <span className="ml-auto text-xs" style={{ color: "var(--mid)" }}>↗</span>
                     </a>
                   )}
                   {property.url_edital && (
-                    <a
-                      href={property.url_edital}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <a href={property.url_edital} target="_blank" rel="noopener noreferrer"
                       className="flex items-center gap-2 text-sm p-3 rounded-lg border hover:bg-gray-50 transition-colors"
-                      style={{ borderColor: "var(--border)", color: "var(--gold)" }}
-                    >
+                      style={{ borderColor: "var(--border)", color: "var(--gold)" }}>
                       📋 Edital do Leilão (PDF)
                       <span className="ml-auto text-xs" style={{ color: "var(--mid)" }}>↗</span>
                     </a>
                   )}
                   {property.link_acesso && (
-                    <a
-                      href={property.link_acesso}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <a href={property.link_acesso} target="_blank" rel="noopener noreferrer"
                       className="flex items-center gap-2 text-sm p-3 rounded-lg border hover:bg-gray-50 transition-colors"
-                      style={{ borderColor: "var(--border)", color: "var(--blue)" }}
-                    >
+                      style={{ borderColor: "var(--border)", color: "var(--blue)" }}>
                       🔗 Página na Caixa Econômica
                       <span className="ml-auto text-xs" style={{ color: "var(--mid)" }}>↗</span>
                     </a>
@@ -394,19 +407,11 @@ export default function ImovelPage({ params }: PageProps) {
 
         {/* Coluna lateral (1/3) */}
         <div className="space-y-4">
-          {/* Score IPL grande */}
-          <div
-            className="rounded-xl border p-5"
-            style={{ background: "#fff", borderColor: "var(--border)" }}
-          >
+          <div className="rounded-xl border p-5" style={{ background: "#fff", borderColor: "var(--border)" }}>
             <div className="text-xs uppercase tracking-wider font-semibold mb-3" style={{ color: "var(--mid)" }}>
               Score de Arrematação
             </div>
-            <IplBadge
-              score={property.ipl_score}
-              classificacao={property.ipl_classificacao}
-              size="lg"
-            />
+            <IplBadge score={property.ipl_score} classificacao={property.ipl_classificacao} size="lg" />
             {property.ipl_score_margem !== undefined && (
               <div className="mt-3 space-y-1.5 text-xs" style={{ color: "var(--mid)" }}>
                 <div className="flex justify-between">
@@ -425,22 +430,14 @@ export default function ImovelPage({ params }: PageProps) {
             )}
           </div>
 
-          {/* Flags de risco */}
-          <div
-            className="rounded-xl border p-5"
-            style={{ background: "#fff", borderColor: "var(--border)" }}
-          >
+          <div className="rounded-xl border p-5" style={{ background: "#fff", borderColor: "var(--border)" }}>
             <div className="text-xs uppercase tracking-wider font-semibold mb-3" style={{ color: "var(--mid)" }}>
               Flags de Risco
             </div>
             <RiskFlags analysis={bestAnalysis} />
           </div>
 
-          {/* Valores */}
-          <div
-            className="rounded-xl border p-5 space-y-3"
-            style={{ background: "#fff", borderColor: "var(--border)" }}
-          >
+          <div className="rounded-xl border p-5 space-y-3" style={{ background: "#fff", borderColor: "var(--border)" }}>
             <div className="text-xs uppercase tracking-wider font-semibold" style={{ color: "var(--mid)" }}>
               Valores
             </div>
@@ -453,17 +450,13 @@ export default function ImovelPage({ params }: PageProps) {
               },
               {
                 label: "Desconto",
-                value: property.desconto_percentual
-                  ? formatPercent(property.desconto_percentual)
-                  : "—",
+                value: property.desconto_percentual ? formatPercent(property.desconto_percentual) : "—",
                 color: "var(--green)",
               },
             ].map((v) => (
               <div key={v.label} className="flex justify-between items-center">
                 <span className="text-xs" style={{ color: "var(--mid)" }}>{v.label}</span>
-                <span className="font-serif text-base font-bold" style={{ color: v.color }}>
-                  {v.value}
-                </span>
+                <span className="font-serif text-base font-bold" style={{ color: v.color }}>{v.value}</span>
               </div>
             ))}
           </div>
@@ -473,10 +466,16 @@ export default function ImovelPage({ params }: PageProps) {
             <button
               onClick={handleAnalyze}
               disabled={isAnalyzing}
-              className="w-full py-3 text-sm font-semibold rounded-lg transition-all hover:opacity-90 disabled:opacity-50"
+              className="w-full py-3 text-sm font-semibold rounded-lg transition-all hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
               style={{ background: "var(--gold)", color: "#fff" }}
             >
-              {isAnalyzing ? "⏳ Analisando (1-3 min)..." : "🔍 Analisar com IA"}
+              {isAnalyzing ? (
+                <>⏳ Enviando análise…</>
+              ) : property.analyses?.length > 0 ? (
+                <>📊 Ver Análise IA</>
+              ) : (
+                <>🔍 Analisar com IA</>
+              )}
             </button>
 
             {property.link_acesso && (
@@ -504,14 +503,9 @@ export default function ImovelPage({ params }: PageProps) {
             </a>
           </div>
 
-          {/* Disclaimer */}
           <div
             className="rounded-xl p-4 text-xs leading-relaxed"
-            style={{
-              background: "var(--cream)",
-              border: "1px solid var(--border)",
-              color: "var(--mid)",
-            }}
+            style={{ background: "var(--cream)", border: "1px solid var(--border)", color: "var(--mid)" }}
           >
             <strong>⚠ Atenção:</strong> Este relatório é informativo baseado em dados públicos.
             Não constitui assessoria jurídica ou financeira. Consulte um profissional antes de arrematar.
