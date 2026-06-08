@@ -24,9 +24,10 @@ app.add_middleware(
     allow_origins=[
         "https://worthdods.com.br",
         "https://www.worthdods.com.br",
-        "https://*.vercel.app",
         "http://localhost:3000",
+        "http://localhost:3001",
     ],
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
