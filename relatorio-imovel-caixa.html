@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Análise de Imóvel – Caixa</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #0d1117;
+    --paper: #f5f0e8;
+    --cream: #ede8dc;
+    --gold: #b8860b;
+    --gold-light: #d4a017;
+    --gold-pale: #f5e6b0;
+    --red: #c0392b;
+    --green: #1a6b3c;
+    --green-light: #d4edda;
+    --red-light: #fde8e8;
+    --blue: #1a3a6b;
+    --blue-light: #dce8f5;
+    --mid: #6b6055;
+    --border: #d0c8b8;
+    --shadow: rgba(13,17,23,0.12);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    min-height: 100vh;
+  }
+
+  /* HEADER */
+  .header {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 0;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .header::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 40px,
+      rgba(184,134,11,0.04) 40px,
+      rgba(184,134,11,0.04) 80px
+    );
+  }
+
+  .header-inner {
+    position: relative;
+    z-index: 1;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 48px 32px 40px;
+  }
+
+  .header-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--gold);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 6px 14px;
+    border-radius: 3px;
+    margin-bottom: 20px;
+  }
+
+  .header h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(28px, 5vw, 44px);
+    line-height: 1.1;
+    color: var(--paper);
+    margin-bottom: 8px;
+  }
+
+  .header h1 span { color: var(--gold-light); }
+
+  .header-sub {
+    font-size: 14px;
+    color: #a09888;
+    letter-spacing: 0.5px;
+  }
+
+  .header-meta {
+    margin-top: 28px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+
+  .header-meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .header-meta-item .label {
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: #a09888;
+  }
+
+  .header-meta-item .value {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--paper);
+  }
+
+  .divider-gold {
+    height: 3px;
+    background: linear-gradient(90deg, var(--gold), var(--gold-light), var(--gold));
+  }
+
+  /* MAIN CONTAINER */
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  /* SECTION */
+  .section {
+    margin-bottom: 40px;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid var(--border);
+  }
+
+  .section-number {
+    width: 32px;
+    height: 32px;
+    background: var(--ink);
+    color: var(--gold);
+    font-family: 'DM Serif Display', serif;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border-radius: 2px;
+  }
+
+  .section-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 20px;
+    color: var(--ink);
+  }
+
+  /* CARD GRID */
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+  }
+
+  .card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    position: relative;
+    box-shadow: 0 2px 8px var(--shadow);
+  }
+
+  .card-accent { border-top: 4px solid var(--gold); }
+  .card-accent-green { border-top: 4px solid var(--green); }
+  .card-accent-red { border-top: 4px solid var(--red); }
+  .card-accent-blue { border-top: 4px solid var(--blue); }
+
+  .card-label {
+    font-size: 11px;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--mid);
+    margin-bottom: 6px;
+  }
+
+  .card-value {
+    font-family: 'DM Serif Display', serif;
+    font-size: 26px;
+    color: var(--ink);
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .card-value.green { color: var(--green); }
+  .card-value.red { color: var(--red); }
+  .card-value.gold { color: var(--gold); }
+  .card-value.blue { color: var(--blue); }
+
+  .card-sub {
+    font-size: 12px;
+    color: var(--mid);
+  }
+
+  .card-badge {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 20px;
+  }
+
+  .badge-green { background: var(--green-light); color: var(--green); }
+  .badge-red { background: var(--red-light); color: var(--red); }
+  .badge-gold { background: var(--gold-pale); color: var(--gold); }
+
+  /* INFO TABLE */
+  .info-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px var(--shadow);
+    border: 1px solid var(--border);
+  }
+
+  .info-table tr:not(:last-child) td, .info-table tr:not(:last-child) th {
+    border-bottom: 1px solid var(--cream);
+  }
+
+  .info-table td, .info-table th {
+    padding: 12px 16px;
+    font-size: 14px;
+    text-align: left;
+  }
+
+  .info-table th {
+    background: var(--ink);
+    color: var(--paper);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+
+  .info-table td:first-child {
+    color: var(--mid);
+    font-size: 12px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    width: 40%;
+    background: var(--cream);
+  }
+
+  .info-table td:last-child {
+    font-weight: 500;
+    color: var(--ink);
+  }
+
+  /* SCENARIO TABLE */
+  .scenario-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px var(--shadow);
+    border: 1px solid var(--border);
+  }
+
+  .scenario-table th {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 14px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-align: left;
+  }
+
+  .scenario-table td {
+    padding: 14px 16px;
+    font-size: 14px;
+    border-bottom: 1px solid var(--cream);
+  }
+
+  .scenario-table tr.highlight-row {
+    background: var(--gold-pale);
+  }
+
+  .scenario-table tr.highlight-row td {
+    font-weight: 600;
+  }
+
+  .scenario-table td.money {
+    font-family: 'DM Serif Display', serif;
+    font-size: 16px;
+  }
+
+  .scenario-table td.positive { color: var(--green); }
+  .scenario-table td.negative { color: var(--red); }
+  .scenario-table td.neutral { color: var(--gold); }
+
+  .pct-pill {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 20px;
+    margin-left: 6px;
+  }
+
+  .pct-pos { background: var(--green-light); color: var(--green); }
+  .pct-neg { background: var(--red-light); color: var(--red); }
+  .pct-neu { background: var(--gold-pale); color: var(--gold); }
+
+  /* COST BREAKDOWN */
+  .cost-list {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px var(--shadow);
+  }
+
+  .cost-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 13px 20px;
+    border-bottom: 1px solid var(--cream);
+  }
+
+  .cost-item:last-child { border-bottom: none; }
+
+  .cost-item-name {
+    font-size: 14px;
+    color: var(--ink);
+  }
+
+  .cost-item-sub {
+    font-size: 12px;
+    color: var(--mid);
+    margin-top: 2px;
+  }
+
+  .cost-item-value {
+    font-family: 'DM Serif Display', serif;
+    font-size: 17px;
+    color: var(--red);
+    white-space: nowrap;
+  }
+
+  .cost-total {
+    background: var(--ink);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+  }
+
+  .cost-total-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--paper);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  .cost-total-value {
+    font-family: 'DM Serif Display', serif;
+    font-size: 22px;
+    color: var(--gold-light);
+  }
+
+  /* RISK / CLAUSE BOXES */
+  .alert-box {
+    border-radius: 8px;
+    padding: 18px 20px;
+    margin-bottom: 12px;
+    display: flex;
+    gap: 14px;
+    border: 1px solid;
+  }
+
+  .alert-box.warning {
+    background: #fffbf0;
+    border-color: #e5c84a;
+  }
+
+  .alert-box.danger {
+    background: #fff5f5;
+    border-color: #e57373;
+  }
+
+  .alert-box.success {
+    background: #f0faf4;
+    border-color: #4caf82;
+  }
+
+  .alert-box.info {
+    background: #f0f5ff;
+    border-color: #6b8ed6;
+  }
+
+  .alert-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .alert-content {}
+  .alert-title { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+  .alert-text { font-size: 13px; color: #444; line-height: 1.6; }
+
+  /* MARKET SECTION */
+  .market-bar-wrap {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px;
+    box-shadow: 0 2px 8px var(--shadow);
+  }
+
+  .market-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 16px;
+    gap: 12px;
+  }
+
+  .market-row:last-child { margin-bottom: 0; }
+
+  .market-label {
+    font-size: 12px;
+    width: 160px;
+    flex-shrink: 0;
+    color: var(--mid);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .market-bar-bg {
+    flex: 1;
+    height: 10px;
+    background: var(--cream);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .market-bar-fill {
+    height: 100%;
+    border-radius: 10px;
+    transition: width 0.8s ease;
+  }
+
+  .market-val {
+    font-family: 'DM Serif Display', serif;
+    font-size: 15px;
+    width: 110px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  /* VERDICT */
+  .verdict-box {
+    background: var(--ink);
+    border-radius: 10px;
+    padding: 32px;
+    color: var(--paper);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .verdict-box::before {
+    content: '';
+    position: absolute;
+    top: -40px; right: -40px;
+    width: 200px; height: 200px;
+    background: radial-gradient(circle, rgba(184,134,11,0.15), transparent 70%);
+    border-radius: 50%;
+  }
+
+  .verdict-label {
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 10px;
+  }
+
+  .verdict-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 26px;
+    margin-bottom: 16px;
+    color: var(--paper);
+  }
+
+  .verdict-text {
+    font-size: 14px;
+    color: #c8bfaf;
+    line-height: 1.7;
+    max-width: 680px;
+  }
+
+  .verdict-stars {
+    margin-top: 16px;
+    font-size: 22px;
+    letter-spacing: 4px;
+  }
+
+  /* FOOTER */
+  .footer {
+    margin-top: 24px;
+    padding: 20px;
+    background: var(--cream);
+    border-radius: 8px;
+    font-size: 12px;
+    color: var(--mid);
+    line-height: 1.7;
+    border: 1px solid var(--border);
+  }
+
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  @media (max-width: 600px) {
+    .two-col { grid-template-columns: 1fr; }
+    .card-grid { grid-template-columns: 1fr 1fr; }
+    .header-meta { gap: 14px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-inner">
+    <div class="header-badge">
+      <span>📋</span> Relatório de Análise – Imóvel Caixa
+    </div>
+    <h1>COND. RES. <span>COLINAS DE ROMA</span></h1>
+    <div class="header-sub">Rua Um, Nº 125 • Apto 203 Bl 08 • Jardim Esmeraldina • Campinas – SP</div>
+    <div class="header-meta">
+      <div class="header-meta-item">
+        <span class="label">Nº do Imóvel</span>
+        <span class="value">878771012947-9</span>
+      </div>
+      <div class="header-meta-item">
+        <span class="label">Matrícula</span>
+        <span class="value">270729</span>
+      </div>
+      <div class="header-meta-item">
+        <span class="label">Comarca</span>
+        <span class="value">Campinas-SP</span>
+      </div>
+      <div class="header-meta-item">
+        <span class="label">Área Total</span>
+        <span class="value">77,72 m²</span>
+      </div>
+      <div class="header-meta-item">
+        <span class="label">Área Privativa</span>
+        <span class="value">40,60 m²</span>
+      </div>
+      <div class="header-meta-item">
+        <span class="label">Tipo</span>
+        <span class="value">Apartamento 2 Quartos</span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="divider-gold"></div>
+
+<div class="container">
+
+  <!-- SEÇÃO 1: VALORES PRINCIPAIS -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-number">1</div>
+      <div class="section-title">Valores Caixa e Spread Bruto</div>
+    </div>
+    <div class="card-grid">
+      <div class="card card-accent">
+        <div class="card-label">Valor de Avaliação (Caixa)</div>
+        <div class="card-value gold">R$ 230.000</div>
+        <div class="card-sub">Laudo oficial de avaliação</div>
+      </div>
+      <div class="card card-accent-red">
+        <div class="card-label">Valor Mínimo de Venda</div>
+        <div class="card-value red">R$ 139.015</div>
+        <div class="card-sub">Desconto de 39,56% sobre avaliação</div>
+        <div class="card-badge badge-red">−39,56%</div>
+      </div>
+      <div class="card card-accent-green">
+        <div class="card-label">Spread Bruto (Diferença)</div>
+        <div class="card-value green">R$ 90.985</div>
+        <div class="card-sub">Avaliação menos valor mínimo</div>
+        <div class="card-badge badge-green">+39,56%</div>
+      </div>
+      <div class="card card-accent-blue">
+        <div class="card-label">Média de Mercado (Cond.)</div>
+        <div class="card-value blue">R$ 240.000</div>
+        <div class="card-sub">Anúncios ativos no Colinas de Roma</div>
+        <div class="card-badge badge-gold">Estimado</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SEÇÃO 2: INFORMAÇÕES DO IMÓVEL -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-number">2</div>
+      <div class="section-title">Ficha Técnica do Imóvel</div>
+    </div>
+    <table class="info-table">
+      <tr><td>Tipo</td><td>Apartamento – 2 Quartos, Sala, Cozinha, WC, Área de Serviço</td></tr>
+      <tr><td>Endereço</td><td>Rua Um, Nº 125, Apto 203 Bl 08 – Jardim Esmeraldina, Campinas-SP</td></tr>
+      <tr><td>Área Total / Privativa</td><td>77,72 m² total · 40,60 m² privativa</td></tr>
+      <tr><td>Comarca / Ofício</td><td>Campinas-SP · 3º Ofício de Registro</td></tr>
+      <tr><td>Matrícula</td><td>270.729</td></tr>
+      <tr><td>Leilões negativos</td><td>Em tratamento (averbação pendente)</td></tr>
+      <tr><td>Formas de pagamento</td><td>Recursos próprios · FGTS (consultar condições) · Financiamento SBPE</td></tr>
+      <tr><td>Infraestrutura do Cond.</td><td>Churrasqueira, Playground, Salão de Festas, Brinquedoteca, Academia, Mini Mercado, Portaria 24h</td></tr>
+    </table>
+  </div>
+
+  <!-- SEÇÃO 3: PESQUISA DE MERCADO -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-number">3</div>
+      <div class="section-title">Pesquisa de Mercado – Colinas de Roma</div>
+    </div>
+    <div class="market-bar-wrap">
+      <div style="margin-bottom:20px;">
+        <div style="font-size:13px;color:var(--mid);line-height:1.6;">
+          Levantamento de anúncios ativos de apartamentos 2 quartos no <strong>Condomínio Residencial Colinas de Roma</strong> e entorno imediato (Jardim Esmeraldina, Campinas). Fontes: Chaves na Mão, Wimoveis, Rede Provectum, Luciana Franco Imóveis.
+        </div>
+      </div>
+
+      <div class="market-row">
+        <div class="market-label">Menor Anúncio</div>
+        <div class="market-bar-bg"><div class="market-bar-fill" style="width:68%;background:#e57373;"></div></div>
+        <div class="market-val" style="color:var(--red);">R$ 205.000</div>
+      </div>
+      <div class="market-row">
+        <div class="market-label">Valor Mín. Caixa</div>
+        <div class="market-bar-bg"><div class="market-bar-fill" style="width:46%;background:#b8860b;"></div></div>
+        <div class="market-val" style="color:var(--gold);">R$ 139.015</div>
+      </div>
+      <div class="market-row">
+        <div class="market-label">Média de Mercado</div>
+        <div class="market-bar-bg"><div class="market-bar-fill" style="width:80%;background:#1a6b3c;"></div></div>
+        <div class="market-val" style="color:var(--green);">R$ 240.000</div>
+      </div>
+      <div class="market-row">
+        <div class="market-label">Avaliação Caixa</div>
+        <div class="market-bar-bg"><div class="market-bar-fill" style="width:77%;background:#1a3a6b;"></div></div>
+        <div class="market-val" style="color:var(--blue);">R$ 230.000</div>
+      </div>
+      <div class="market-row">
+        <div class="market-label">Maior Anúncio</div>
+        <div class="market-bar-bg"><div class="market-bar-fill" style="width:92%;background:#555;"></div></div>
+        <div class="market-val" style="color:var(--ink);">R$ 285.000</div>
+      </div>
+
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);font-size:12px;color:var(--mid);line-height:1.7;">
+        <strong>Amostra coletada:</strong> 12 anúncios ativos · Média calculada: ≈ R$ 240.000 · Faixa: R$ 205.000 – R$ 285.000 · Condomínio médio mensal: R$ 332–R$ 370 · IPTU estimado: R$ 14–R$ 65/mês.<br>
+        <span style="color:#e57373;">⚠ O imóvel leiloado possui área privativa de 40,60 m² (apto padrão do condomínio). Preços observados são comparáveis.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- SEÇÃO 4: CUSTOS DE AQUISIÇÃO E SAÍDA -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-number">4</div>
+      <div class="section-title">Custos de Aquisição e Saída (base: valor mínimo)</div>
+    </div>
+    <div class="two-col">
+      <div>
+        <div style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--mid);margin-bottom:10px;font-weight:600;">Sobre o Valor Mínimo (R$ 139.015)</div>
+        <div class="cost-list">
+          <div class="cost-item">
+            <div>
+              <div class="cost-item-name">Corretor</div>
+              <div class="cost-item-sub">6% do valor de venda (sobre valor mínimo)</div>
+            </div>
+            <div class="cost-item-value">− R$ 8.341</div>
+          </div>
+          <div class="cost-item">
+            <div>
+              <div class="cost-item-name">ITBI</div>
+              <div class="cost-item-sub">3% sobre valor de arrematação</div>
+            </div>
+            <div class="cost-item-value">− R$ 4.170</div>
+          </div>
+          <div class="cost-item">
+            <div>
+              <div class="cost-item-name">Registro de Imóvel</div>
+              <div class="cost-item-sub">Estimativa cartório</div>
+            </div>
+            <div class="cost-item-value">− R$ 2.500</div>
+          </div>
+          <div class="cost-item">
+            <div>
+              <div class="cost-item-name">Reformas</div>
+              <div class="cost-item-sub">Estimativa de recuperação</div>
+            </div>
+            <div class="cost-item-value">− R$ 8.000</div>
+          </div>
+          <div class="cost-item">
+            <div>
+              <div class="cost-item-name">Condomínio em atraso</div>
+              <div class="cost-item-sub">Comprador arca até 10% da avaliação</div>
+            </div>
+            <div class="cost-item-value">até − R$ 23.000</div>
+          </div>
+          <div class="cost-total">
+            <div class="cost-total-label">Custo Total Estimado</div>
+            <div class="cost-total-value">− R$ 23.011 + cond.</div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--mid);margin-bottom:10px;font-weight:600;">Custos por Cenário de Venda</div>
+        <table class="info-table">
+          <tr><td>Corretor (6%)</td><td>R$ 8.341 – R$ 17.100</td></tr>
+          <tr><td>ITBI (3%)</td><td>R$ 4.170 (fixo na arrematação)</td></tr>
+          <tr><td>Registro</td><td>R$ 2.500</td></tr>
+          <tr><td>Reformas</td><td>R$ 8.000</td></tr>
+          <tr><td>Cond. atraso (máx.)</td><td>R$ 23.000 (10% de R$230k)</td></tr>
+          <tr><td>Total sem cond. atraso</td><td>R$ 23.011 – R$ 31.770</td></tr>
+          <tr><td>Total com cond. máx.</td><td>até R$ 46.011</td></tr>
+        </table>
+        <div style="margin-top:12px;font-size:12px;color:var(--mid);line-height:1.6;padding:12px;background:var(--cream);border-radius:6px;border:1px solid var(--border);">
+          <strong>Nota:</strong> O corretor de 6% incide sobre o valor de venda final (ao revender), não sobre a arrematação. O ITBI é sempre sobre o valor de arrematação (R$ 139.015).
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SEÇÃO 5: TABELA DE RESULTADOS POR CENÁRIO -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-number">5</div>
+      <div class="section-title">Resultado Líquido por Cenário de Venda</div>
+    </div>
+    <div style="overflow-x:auto;">
+    <table class="scenario-table" style="min-width:600px;">
+      <thead>
+        <tr>
+          <th>Cenário</th>
+          <th>Valor de Venda</th>
+          <th>Custo Total*</th>
+          <th>Lucro Líquido</th>
+          <th>Retorno s/ Investido</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Cenario 1 -->
+        <tr class="highlight-row">
+          <td>
+            <strong>Avaliação Caixa</strong><br>
+            <span style="font-size:11px;color:var(--mid);font-weight:400;">Vender pelo laudo oficial</span>
+          </td>
+          <td class="money">R$ 230.000</td>
+          <td class="money" style="color:var(--red);">R$ 36.811</td>
+          <td class="money positive">
+            R$ 54.174
+            <span class="pct-pill pct-pos">+39,0%</span>
+          </td>
+          <td class="money positive">+39,0%</td>
+        </tr>
+        <!-- Cenario 2 -->
+        <tr>
+          <td>
+            <strong>Média de Mercado</strong><br>
+            <span style="font-size:11px;color:var(--mid);">Estimativa pesquisa ativa</span>
+          </td>
+          <td class="money">R$ 240.000</td>
+          <td class="money" style="color:var(--red);">R$ 37.011</td>
+          <td class="money positive">
+            R$ 63.974
+            <span class="pct-pill pct-pos">+46,0%</span>
+          </td>
+          <td class="money positive">+46,0%</td>
+        </tr>
+        <!-- Cenario 3 -->
+        <tr>
+          <td>
+            <strong>Menor Anúncio Similar</strong><br>
+            <span style="font-size:11px;color:var(--mid);">Venda rápida/desconto</span>
+          </td>
+          <td class="money">R$ 205.000</td>
+          <td class="money" style="color:var(--red);">R$ 34.811</td>
+          <td class="money positive">
+            R$ 31.174
+            <span class="pct-pill pct-pos">+22,4%</span>
+          </td>
+          <td class="money positive">+22,4%</td>
+        </tr>
+        <!-- Cenario 4 -->
+        <tr>
+          <td>
+            <strong>Maior Anúncio Similar</strong><br>
+            <span style="font-size:11px;color:var(--mid);">Apartamento reformado/premium</span>
+          </td>
+          <td class="money">R$ 285.000</td>
+          <td class="money" style="color:var(--red);">R$ 39.611</td>
+          <td class="money positive">
+            R$ 106.374
+            <span class="pct-pill pct-pos">+76,5%</span>
+          </td>
+          <td class="money positive">+76,5%</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+    <div style="margin-top:12px;font-size:12px;color:var(--mid);line-height:1.6;padding:12px 16px;background:var(--cream);border-radius:6px;border:1px solid var(--border);">
+      * Custo total = Corretor 6% (sobre valor de venda) + ITBI 3% (sobre R$139.015) + Registro R$2.500 + Reformas R$8.000. <strong>Não inclui</strong> eventual dívida de condomínio (até R$23.000). Retorno calculado sobre capital investido (valor arrematação + custos fixos = R$153.685 base mínima).
+    </div>
+  </div>
+
+  <!-- SEÇÃO 6: EDITAL / CLÁUSULAS LEGAIS -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-number">6</div>
+      <div class="section-title">Análise do Edital – Cláusulas Relevantes</div>
+    </div>
+
+    <div class="alert-box warning">
+      <div class="alert-icon">⚠️</div>
+      <div class="alert-content">
+        <div class="alert-title">Dívidas de Condomínio – Responsabilidade Parcial do Comprador</div>
+        <div class="alert-text">
+          Conforme as <em>Regras da Venda Online</em> da Caixa (item 16.3): o comprador é responsável pelo pagamento das taxas de condomínio <strong>até o limite de 10% do valor de avaliação do imóvel</strong> (= até <strong>R$ 23.000</strong>). A Caixa pagará apenas o valor que exceder esse limite. Os tributos (IPTU, ITR) são <strong>integralmente de responsabilidade do comprador</strong> neste imóvel específico, conforme anúncio.
+        </div>
+      </div>
+    </div>
+
+    <div class="alert-box danger">
+      <div class="alert-icon">🚨</div>
+      <div class="alert-content">
+        <div class="alert-title">Cláusula de Evicção – Proteção LIMITADA</div>
+        <div class="alert-text">
+          O edital padrão da Caixa (item 17.3) prevê expressamente: <strong>"A evicção não gera indenização por perdas e danos."</strong> Isso significa que, caso um terceiro reivindique judicialmente o imóvel com direito anterior (evicção), a Caixa devolve os valores pagos (corrigidos pela poupança), <strong>mas não responde por lucros cessantes, honorários advocatícios ou outros prejuízos</strong>. A proteção ao comprador é parcial: há devolução do preço, sem cobertura ampla de danos.
+        </div>
+      </div>
+    </div>
+
+    <div class="alert-box success">
+      <div class="alert-icon">✅</div>
+      <div class="alert-content">
+        <div class="alert-title">O que a Caixa garante</div>
+        <div class="alert-text">
+          A Caixa se responsabiliza por: (1) regularidade documental da matrícula; (2) pagamento das dívidas de condomínio que excederem o limite de 10% da avaliação; (3) em caso de evicção, devolução do preço pago corrigido pelo índice da poupança + juros. A Caixa oferece escritura regular após a formalização da compra.
+        </div>
+      </div>
+    </div>
+
+    <div class="alert-box info">
+      <div class="alert-icon">📋</div>
+      <div class="alert-content">
+        <div class="alert-title">Leilão Negativo – Averbação pendente</div>
+        <div class="alert-text">
+          O campo "Averbação dos leilões negativos" aparece como <strong>"Em tratamento"</strong>. Isso significa que leilões anteriores foram realizados sem arrematantes e ainda estão sendo averbados na matrícula. O comprador pode ser responsável por solicitar e pagar a averbação junto ao Registro Geral de Imóveis (RGI), conforme item 11.5 do edital. Custo adicional estimado: R$ 300–R$ 800 no cartório.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SEÇÃO 7: RISCOS -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-number">7</div>
+      <div class="section-title">Análise de Riscos</div>
+    </div>
+
+    <div class="alert-box danger">
+      <div class="alert-icon">🔴</div>
+      <div class="alert-content">
+        <div class="alert-title">RISCO ALTO – Imóvel Potencialmente Ocupado</div>
+        <div class="alert-text">
+          O anúncio não informa explicitamente a situação de ocupação. Imóveis da Caixa frequentemente estão ocupados pelo ex-mutuário. Nesse caso, o comprador pode precisar mover <strong>ação de reintegração de posse</strong>, com custo de R$ 5.000–R$ 15.000 e prazo de 6–24 meses. <strong>Recomenda-se visita ao imóvel antes da proposta</strong>, solicitando a visita via plataforma da Caixa.
+        </div>
+      </div>
+    </div>
+
+    <div class="alert-box danger">
+      <div class="alert-icon">🔴</div>
+      <div class="alert-content">
+        <div class="alert-title">RISCO ALTO – Dívida de Condomínio Desconhecida</div>
+        <div class="alert-text">
+          O valor exato da dívida de condomínio não está divulgado. Como o comprador arca com até R$ 23.000, e o condomínio cobra ≈ R$ 332–R$ 370/mês, um imóvel inadimplente há 5 anos acumula ≈ R$ 20.000–R$ 22.000 + multas. <strong>É crucial contatar a administradora do condomínio antes de arrematar</strong> para obter a declaração de débitos.
+        </div>
+      </div>
+    </div>
+
+    <div class="alert-box warning">
+      <div class="alert-icon">🟡</div>
+      <div class="alert-content">
+        <div class="alert-title">RISCO MÉDIO – Área Total vs. Privativa</div>
+        <div class="alert-text">
+          O imóvel tem área total de 77,72 m² mas área privativa de apenas 40,60 m². A diferença (≈37 m²) pode corresponder a área de uso comum, vagas, sacadas cobertas ou discrepâncias de averbação. Verificar a matrícula atualizada para confirmar se a área total inclui vaga de garagem ou frações ideais que não agregam valor de uso.
+        </div>
+      </div>
+    </div>
+
+    <div class="alert-box warning">
+      <div class="alert-icon">🟡</div>
+      <div class="alert-content">
+        <div class="alert-title">RISCO MÉDIO – Financiamento SBPE com Restrições</div>
+        <div class="alert-text">
+          O imóvel aceita financiamento apenas via <strong>SBPE</strong> (não Minha Casa Minha Vida). Isso limita o público comprador no momento da revenda e pode tornar a saída mais lenta, especialmente para imóveis nessa faixa de preço onde compradores dependem de FGTS e MCMV.
+        </div>
+      </div>
+    </div>
+
+    <div class="alert-box info">
+      <div class="alert-icon">🔵</div>
+      <div class="alert-content">
+        <div class="alert-title">RISCO BAIXO – Localização e Liquidez</div>
+        <div class="alert-text">
+          O Jardim Esmeraldina é bairro com razoável liquidez imobiliária, com 100+ anúncios ativos. A proximidade com a Rodovia Anhanguera, Carrefour Valinhos e serviços locais é positiva. O condomínio Colinas de Roma é bem estabelecido com infraestrutura completa, o que favorece a revenda e a valorização.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SEÇÃO 8: VEREDICTO FINAL -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-number">8</div>
+      <div class="section-title">Veredicto Consolidado</div>
+    </div>
+    <div class="verdict-box">
+      <div class="verdict-label">✦ Avaliação Final do Analista</div>
+      <div class="verdict-title">Oportunidade Atrativa com Riscos Gerenciáveis</div>
+      <div class="verdict-text">
+        O imóvel apresenta desconto expressivo de <strong>39,56%</strong> sobre o valor de avaliação da Caixa, com spread bruto de R$ 90.985. Mesmo no cenário mais conservador (venda pelo menor anúncio similar, R$ 205.000), o retorno líquido estimado é positivo em <strong>+22,4%</strong> sobre o capital investido. No cenário médio de mercado (R$ 240.000), o lucro líquido estimado alcança <strong>R$ 63.974 (+46%)</strong>.<br><br>
+        Os principais riscos — possível ocupação, dívida de condomínio desconhecida e cláusula de evicção limitada — são gerenciáveis com due diligence prévia: solicitar visita ao imóvel, obter certidão de débitos condominiais e consultar a matrícula atualizada no cartório. A averbação de leilão negativo pendente é um passo burocrático adicional, mas não inviabiliza o negócio.
+      </div>
+      <div class="verdict-stars">⭐⭐⭐⭐☆</div>
+      <div style="margin-top:8px;font-size:12px;color:#a09888;">4/5 – Recomendado com due diligence prévia</div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <strong>⚠ Disclaimer:</strong> Este relatório é uma análise informativa baseada em dados públicos disponíveis na data de consulta. Os valores de mercado são estimativas baseadas em anúncios ativos e podem variar. Custos são projeções e podem diferir dos valores reais. Não constitui assessoria jurídica, financeira ou imobiliária. Recomenda-se consultar corretor credenciado, advogado especializado e realizar vistoria presencial antes de qualquer proposta.
+    <br><br>
+    <strong>Fontes:</strong> Caixa Econômica Federal (venda-imoveis.caixa.gov.br) · Chaves na Mão · Wimoveis · Rede Provectum · Luciana Franco Imóveis · Regras da Venda Online Caixa (PDF) · Edital Caixa padrão CPVERE.
+  </div>
+
+</div>
+</body>
+</html>
