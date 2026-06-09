@@ -36,9 +36,9 @@ async def list_properties(
     if uf:
         query = query.eq("uf", uf.upper())
     if cidade:
-        query = query.ilike("cidade", f"%{cidade}%")
+        query = query.ilike("cidade", f"*{cidade}*")
     if modalidade:
-        query = query.ilike("modalidade", f"%{modalidade}%")
+        query = query.ilike("modalidade", f"*{modalidade}*")
     if preco_min is not None:
         query = query.gte("preco", preco_min)
     if preco_max is not None:
@@ -52,7 +52,7 @@ async def list_properties(
 
     if order_by not in VALID_ORDER_FIELDS:
         order_by = "ipl_score"
-    query = query.order(order_by, desc=(order_dir.lower() == "desc"), nullsfirst=False)
+    query = query.order(order_by, desc=(order_dir.lower() == "desc"))
 
     offset = (page - 1) * page_size
     query = query.range(offset, offset + page_size - 1)
