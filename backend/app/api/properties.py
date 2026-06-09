@@ -52,12 +52,16 @@ async def list_properties(
 
     if order_by not in VALID_ORDER_FIELDS:
         order_by = "ipl_score"
-    query = query.order(order_by, desc=(order_dir.lower() == "desc"))
+    query = query.order(order_by, desc=(order_dir.lower() == "desc"), nullsfirst=False)
 
     offset = (page - 1) * page_size
     query = query.range(offset, offset + page_size - 1)
 
-    result = query.execute()
+    try:
+        result = query.execute()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro na consulta: {str(e)}")
+
     total = result.count or 0
 
     return {

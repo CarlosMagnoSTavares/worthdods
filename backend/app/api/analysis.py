@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks
 from datetime import datetime, timezone, timedelta
 import logging
 from app.database import get_supabase
+from app.services.legal_checker import summarize_legal_risks
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +104,11 @@ async def run_full_analysis(property_id: str):
 
     # 3. Processos judiciais
     legal_results = await search_processes_by_property(
-        property_id, prop["uf"], prop["imovel_numero"]
+        property_id,
+        prop["uf"],
+        prop.get("imovel_numero", ""),
+        endereco=prop.get("endereco", ""),
+        proprietario=prop.get("proprietario", ""),
     )
     if legal_results:
         try:
@@ -153,12 +158,14 @@ async def trigger_analysis(property_id: str, background_tasks: BackgroundTasks):
             )
             if datetime.now(timezone.utc) - last < timedelta(hours=6):
                 legal = supabase.table("legal_checks").select("*").eq("property_id", property_id).execute()
+                legal_data = legal.data or []
                 return {
                     "message": "Análise recente já disponível",
                     "property_id": property_id,
                     "status": "cached",
                     "analyses": existing.data,
-                    "legal_checks": legal.data or [],
+                    "legal_checks": legal_data,
+                    "legal_summary": summarize_legal_risks(legal_data),
                 }
         except Exception:
             pass
@@ -187,10 +194,13 @@ async def get_analysis(property_id: str):
     has_analysis = bool(analyses.data)
     is_processing = False
 
+    legal_data = legal.data or []
+
     return {
         "property_id": property_id,
         "analyses": analyses.data or [],
-        "legal_checks": legal.data or [],
+        "legal_checks": legal_data,
+        "legal_summary": summarize_legal_risks(legal_data),
         "has_analysis": has_analysis,
         "is_processing": is_processing,
     }

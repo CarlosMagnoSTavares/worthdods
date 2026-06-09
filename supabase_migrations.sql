@@ -194,3 +194,7 @@ create trigger properties_updated_at
 create trigger analyses_updated_at
   before update on public.property_analyses
   for each row execute function update_updated_at();
+
+-- Migration 010: Legal checks risk classification
+alter table public.legal_checks add column if not exists tipo_risco text;
+alter table public.legal_checks add column if not exists severidade text;
