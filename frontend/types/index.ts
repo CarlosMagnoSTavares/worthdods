@@ -31,6 +31,7 @@ export interface Property {
 export interface PropertyDetail extends Property {
   analyses: Analysis[];
   legal_checks: LegalCheck[];
+  legal_summary?: LegalSummary;
 }
 
 export interface Analysis {
@@ -71,9 +72,25 @@ export interface LegalCheck {
   numero_processo?: string;
   classe_processual?: string;
   assunto?: string;
+  tipo_risco?: string;
+  severidade?: "BAIXA" | "MEDIA" | "ALTA" | "CRITICA";
   data_ajuizamento?: string;
   grau?: string;
   checked_at: string;
+}
+
+export interface LegalSummary {
+  total_processos: number;
+  tem_risco_critico: boolean;
+  tipos_risco: string[];
+  score_juridico: number;
+  resumo: string;
+}
+
+export interface PropertyDetail extends Property {
+  analyses: Analysis[];
+  legal_checks: LegalCheck[];
+  legal_summary?: LegalSummary;
 }
 
 export interface PropertiesResponse {

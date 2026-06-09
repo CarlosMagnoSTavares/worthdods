@@ -1,4 +1,4 @@
-import type { Filters, PropertiesResponse, PropertyDetail } from "@/types";
+import type { Filters, PropertiesResponse, PropertyDetail, LegalSummary } from "@/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -41,7 +41,7 @@ export const api = {
     analyze: (id: string): Promise<{ message: string; status: string; analyses?: unknown[]; legal_checks?: unknown[] }> =>
       apiFetch(`/properties/${id}/analyze`, { method: "POST" }),
 
-    getAnalysis: (id: string): Promise<{ property_id: string; analyses: unknown[]; legal_checks: unknown[]; has_analysis: boolean; is_processing: boolean }> =>
+    getAnalysis: (id: string): Promise<{ property_id: string; analyses: unknown[]; legal_checks: unknown[]; legal_summary: LegalSummary; has_analysis: boolean; is_processing: boolean }> =>
       apiFetch(`/properties/${id}/analysis`),
 
     getLegal: (id: string) => apiFetch(`/properties/${id}/legal`),

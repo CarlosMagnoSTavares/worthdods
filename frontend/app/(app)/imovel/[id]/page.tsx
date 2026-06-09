@@ -8,7 +8,8 @@ import { RiskFlags } from "@/components/RiskFlags";
 import { AnalysisPanel } from "@/components/AnalysisPanel";
 import { formatBRL, formatPercent, formatDate } from "@/lib/utils";
 import { useNotifications } from "@/lib/notifications";
-import type { PropertyDetail, Analysis, LegalCheck } from "@/types";
+import { LegalReport } from "@/components/LegalReport";
+import type { PropertyDetail, Analysis } from "@/types";
 
 interface PageProps {
   params: { id: string };
@@ -329,79 +330,16 @@ export default function ImovelPage({ params }: PageProps) {
 
           {/* Tab: Jurídico */}
           {activeTab === "juridico" && (
-            <div className="space-y-4">
-              <div className="rounded-xl border p-5" style={{ background: "#fff", borderColor: "var(--border)" }}>
-                <h3 className="font-serif text-lg mb-4" style={{ color: "var(--ink)" }}>
-                  Processos Judiciais — CNJ Datajud
-                </h3>
-                {property.legal_checks?.length === 0 ? (
-                  <p className="text-sm" style={{ color: "var(--mid)" }}>
-                    Nenhum processo encontrado. Execute a análise para buscar no CNJ Datajud.
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {property.legal_checks?.map((check: LegalCheck) => (
-                      <div
-                        key={check.id}
-                        className="p-3 rounded-lg border"
-                        style={{ borderColor: "var(--border)", background: "var(--cream)" }}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span
-                            className="text-xs font-bold px-2 py-0.5 rounded"
-                            style={{ background: "var(--ink)", color: "var(--gold-light)" }}
-                          >
-                            {check.tribunal}
-                          </span>
-                          <span className="text-xs" style={{ color: "var(--mid)" }}>
-                            {check.data_ajuizamento && formatDate(check.data_ajuizamento)}
-                          </span>
-                        </div>
-                        <p className="text-sm mt-2 font-medium" style={{ color: "var(--ink)" }}>
-                          {check.numero_processo}
-                        </p>
-                        {check.classe_processual && (
-                          <p className="text-xs mt-0.5" style={{ color: "var(--mid)" }}>{check.classe_processual}</p>
-                        )}
-                        {check.assunto && (
-                          <p className="text-xs mt-0.5 line-clamp-2" style={{ color: "var(--mid)" }}>{check.assunto}</p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="rounded-xl border p-5" style={{ background: "#fff", borderColor: "var(--border)" }}>
-                <h3 className="font-serif text-lg mb-4" style={{ color: "var(--ink)" }}>Documentos</h3>
-                <div className="space-y-2">
-                  {property.url_matricula && (
-                    <a href={property.url_matricula} target="_blank" rel="noopener noreferrer"
-                      className="flex items-center gap-2 text-sm p-3 rounded-lg border hover:bg-gray-50 transition-colors"
-                      style={{ borderColor: "var(--border)", color: "var(--gold)" }}>
-                      📄 Matrícula do Imóvel (PDF)
-                      <span className="ml-auto text-xs" style={{ color: "var(--mid)" }}>↗</span>
-                    </a>
-                  )}
-                  {property.url_edital && (
-                    <a href={property.url_edital} target="_blank" rel="noopener noreferrer"
-                      className="flex items-center gap-2 text-sm p-3 rounded-lg border hover:bg-gray-50 transition-colors"
-                      style={{ borderColor: "var(--border)", color: "var(--gold)" }}>
-                      📋 Edital do Leilão (PDF)
-                      <span className="ml-auto text-xs" style={{ color: "var(--mid)" }}>↗</span>
-                    </a>
-                  )}
-                  {property.link_acesso && (
-                    <a href={property.link_acesso} target="_blank" rel="noopener noreferrer"
-                      className="flex items-center gap-2 text-sm p-3 rounded-lg border hover:bg-gray-50 transition-colors"
-                      style={{ borderColor: "var(--border)", color: "var(--blue)" }}>
-                      🔗 Página na Caixa Econômica
-                      <span className="ml-auto text-xs" style={{ color: "var(--mid)" }}>↗</span>
-                    </a>
-                  )}
-                </div>
-              </div>
-            </div>
+            <LegalReport
+              legalChecks={property.legal_checks || []}
+              legalSummary={property.legal_summary}
+              analyses={property.analyses || []}
+              onAnalyze={handleAnalyze}
+              isAnalyzing={isAnalyzing}
+              urlMatricula={property.url_matricula}
+              urlEdital={property.url_edital}
+              linkAcesso={property.link_acesso}
+            />
           )}
         </div>
 

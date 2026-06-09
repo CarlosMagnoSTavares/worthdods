@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Query, HTTPException
 from typing import Optional
 from app.database import get_supabase
+from app.services.legal_checker import summarize_legal_risks
 
 router = APIRouter(prefix="/properties", tags=["properties"])
 
@@ -111,8 +112,11 @@ async def get_property(property_id: str):
     analyses = supabase.table("property_analyses").select("*").eq("property_id", property_id).execute()
     legal = supabase.table("legal_checks").select("*").eq("property_id", property_id).execute()
 
+    legal_data = legal.data or []
+
     return {
         **result.data,
         "analyses": analyses.data or [],
-        "legal_checks": legal.data or [],
+        "legal_checks": legal_data,
+        "legal_summary": summarize_legal_risks(legal_data),
     }
