@@ -36,3 +36,10 @@ logs/
 # Secrets
 *.pem
 *.key
+env.txt
+
+# Build artifacts
+frontend/tsconfig.tsbuildinfo
+
+# Local files
+*.pdf
