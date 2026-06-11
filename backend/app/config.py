@@ -8,7 +8,8 @@ class Settings(BaseSettings):
     SUPABASE_ANON_KEY: str = ""
 
     OPENROUTER_API_KEY: str = ""
-    OPENROUTER_MODEL_PRIMARY: str = "poolside/laguna-m.1:free"
+    OPENROUTER_MODEL_PRIMARY: str = "meta-llama/llama-3.3-70b-instruct:free"
+    OPENROUTER_MODEL_FALLBACK: str = "google/gemini-2.0-flash-exp:free"
     OPENROUTER_MODEL_VISION: str = "google/gemma-3-27b-it:free"
 
     CNJ_API_KEY: str = "cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw=="

@@ -6,7 +6,7 @@ Extrai riscos jurídicos e retorna JSON estruturado.
 import httpx
 import json
 import logging
-from typing import Optional
+from typing import Optional, List
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -94,51 +94,135 @@ REGRAS CRÍTICAS:
 - Se não houver informação clara, assuma o pior caso (proteção ao investidor)"""
 
 
-async def analyze_document(texto: str, tipo: str) -> Optional[dict]:
-    prompt_template = PROMPT_MATRICULA if tipo == "matricula" else PROMPT_EDITAL
-    prompt = prompt_template.format(texto=texto[:40000])
+# Lista de modelos a tentar em ordem. Primeiro o configurado no env,
+# depois fallbacks reconhecidamente estáveis e gratuitos no OpenRouter.
+def _model_chain() -> List[str]:
+    primary = (settings.OPENROUTER_MODEL_PRIMARY or "").strip()
+    fallback = (settings.OPENROUTER_MODEL_FALLBACK or "").strip()
+    extra_fallbacks = [
+        "meta-llama/llama-3.3-70b-instruct:free",
+        "google/gemini-2.0-flash-exp:free",
+        "deepseek/deepseek-chat-v3-0324:free",
+    ]
+    chain: List[str] = []
+    for m in [primary, fallback, *extra_fallbacks]:
+        if m and m not in chain:
+            chain.append(m)
+    return chain
 
-    async with httpx.AsyncClient(timeout=120.0) as client:
+
+def _extract_json(content: str) -> Optional[dict]:
+    """Tenta extrair JSON de uma resposta de LLM, lidando com fences ```json e texto extra."""
+    if not content:
+        return None
+    text = content.strip()
+
+    if "```json" in text:
+        text = text.split("```json", 1)[1].split("```", 1)[0].strip()
+    elif text.startswith("```"):
+        text = text.strip("`").strip()
+        if text.lower().startswith("json"):
+            text = text[4:].strip()
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    start = text.find("{")
+    end = text.rfind("}")
+    if start != -1 and end > start:
         try:
-            resp = await client.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}",
-                    "HTTP-Referer": "https://worthdods.com.br",
-                    "X-Title": "Worthdods",
-                },
-                json={
-                    "model": settings.OPENROUTER_MODEL_PRIMARY,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "temperature": 0.1,
-                },
-            )
+            return json.loads(text[start : end + 1])
+        except json.JSONDecodeError:
+            return None
+    return None
 
-            data = resp.json()
 
-            if "error" in data:
-                return {"erro": data["error"].get("message", str(data["error"]))}
+async def _call_openrouter(client: httpx.AsyncClient, model: str, prompt: str) -> dict:
+    """Faz uma chamada ao OpenRouter. Retorna dict com 'parsed' | 'erro' | 'status'."""
+    payload = {
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.1,
+        "response_format": {"type": "json_object"},
+    }
 
-            content = data["choices"][0]["message"]["content"]
+    try:
+        resp = await client.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}",
+                "HTTP-Referer": "https://worthdods.com.br",
+                "X-Title": "Worthdods",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+        )
+    except httpx.TimeoutException as e:
+        logger.warning(f"OpenRouter timeout model={model}: {e}")
+        return {"erro": f"Timeout no modelo {model}", "status": 0}
+    except Exception as e:
+        logger.warning(f"OpenRouter request falhou model={model}: {e}")
+        return {"erro": f"Erro de rede no modelo {model}: {e}", "status": 0}
 
-            # Extrair JSON do conteúdo (pode haver texto antes/depois)
-            content = content.strip()
-            if "```json" in content:
-                content = content.split("```json")[1].split("```")[0].strip()
-            elif "```" in content:
-                content = content.split("```")[1].split("```")[0].strip()
+    if resp.status_code >= 500:
+        logger.warning(f"OpenRouter HTTP {resp.status_code} model={model}: {resp.text[:300]}")
+        return {"erro": f"HTTP {resp.status_code} no modelo {model}", "status": resp.status_code}
 
-            parsed = json.loads(content)
+    try:
+        data = resp.json()
+    except Exception as e:
+        logger.error(f"OpenRouter resposta não-JSON model={model}: {e}; body={resp.text[:300]}")
+        return {"erro": f"Resposta não-JSON do OpenRouter: {e}", "status": resp.status_code}
 
-            return {
-                "resultado": parsed,
-                "modelo": data.get("model", settings.OPENROUTER_MODEL_PRIMARY),
-                "tokens": data.get("usage", {}).get("total_tokens", 0),
-            }
+    if isinstance(data, dict) and data.get("error"):
+        err = data["error"]
+        msg = err.get("message", str(err)) if isinstance(err, dict) else str(err)
+        logger.warning(f"OpenRouter error model={model}: {msg}")
+        return {"erro": msg, "status": resp.status_code}
 
-        except json.JSONDecodeError as e:
-            logger.error(f"JSON parse error na análise {tipo}: {e}")
-            return {"erro": f"Resposta da IA não é JSON válido: {e}"}
-        except Exception as e:
-            logger.error(f"Erro análise {tipo}: {e}")
-            return {"erro": str(e)}
+    try:
+        content = data["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError):
+        logger.error(f"OpenRouter sem 'choices' model={model}: {str(data)[:300]}")
+        return {"erro": "Resposta sem 'choices' do OpenRouter", "status": resp.status_code}
+
+    parsed = _extract_json(content)
+    if parsed is None:
+        logger.error(f"JSON inválido model={model}: {content[:300]}")
+        return {"erro": "Resposta da IA não é JSON válido", "status": resp.status_code, "raw": content[:1000]}
+
+    return {
+        "parsed": parsed,
+        "modelo": data.get("model", model),
+        "tokens": (data.get("usage") or {}).get("total_tokens", 0),
+        "status": resp.status_code,
+    }
+
+
+async def analyze_document(texto: str, tipo: str) -> Optional[dict]:
+    if not settings.OPENROUTER_API_KEY:
+        return {"erro": "OPENROUTER_API_KEY não configurada"}
+
+    prompt_template = PROMPT_MATRICULA if tipo == "matricula" else PROMPT_EDITAL
+    prompt = prompt_template.format(texto=(texto or "")[:30000])
+
+    last_err = "Falha desconhecida"
+    chain = _model_chain()
+    logger.info(f"Análise {tipo}: tentando {len(chain)} modelo(s): {chain}")
+
+    async with httpx.AsyncClient(timeout=180.0) as client:
+        for model in chain:
+            result = await _call_openrouter(client, model, prompt)
+            if "parsed" in result:
+                logger.info(f"Análise {tipo} OK com modelo {model} ({result.get('tokens')} tokens)")
+                return {
+                    "resultado": result["parsed"],
+                    "modelo": result.get("modelo", model),
+                    "tokens": result.get("tokens", 0),
+                }
+            last_err = result.get("erro", last_err)
+            logger.warning(f"Modelo {model} falhou ({last_err}); tentando próximo")
+
+    return {"erro": last_err}

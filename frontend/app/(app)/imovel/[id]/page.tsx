@@ -29,6 +29,38 @@ export default function ImovelPage({ params }: PageProps) {
     loadProperty();
   }, [id]);
 
+  // Poll while analyzing — refresh property when background analysis finishes
+  useEffect(() => {
+    if (!isAnalyzing) return;
+    if (property?.analyses && property.analyses.length > 0) return;
+
+    const started = Date.now();
+    const MAX_MS = 5 * 60 * 1000;
+
+    const timer = setInterval(async () => {
+      if (Date.now() - started > MAX_MS) {
+        setIsAnalyzing(false);
+        setAnalyzeMsg("Análise demorou demais. Tente novamente em alguns minutos.");
+        setTimeout(() => setAnalyzeMsg(null), 6000);
+        clearInterval(timer);
+        return;
+      }
+      try {
+        const data = await api.properties.get(id);
+        if (data.analyses && data.analyses.length > 0) {
+          setProperty(data);
+          setIsAnalyzing(false);
+          setActiveTab("analise");
+          setAnalyzeMsg("Análise concluída ✅");
+          setTimeout(() => setAnalyzeMsg(null), 4000);
+          clearInterval(timer);
+        }
+      } catch {}
+    }, 6000);
+
+    return () => clearInterval(timer);
+  }, [isAnalyzing, id, property?.analyses?.length]);
+
   async function loadProperty() {
     setLoading(true);
     try {
@@ -74,8 +106,9 @@ export default function ImovelPage({ params }: PageProps) {
         setActiveTab("analise");
         setAnalyzeMsg("Análise já disponível — carregada do cache.");
         setTimeout(() => setAnalyzeMsg(null), 4000);
+        setIsAnalyzing(false);
       } else {
-        // Processing in background — register notification
+        // Processing in background — register notification + start page polling
         addNotification({
           propertyId: id,
           propertyAddress: property.endereco,
@@ -83,13 +116,12 @@ export default function ImovelPage({ params }: PageProps) {
           status: "processing",
         });
         setActiveTab("analise");
-        setAnalyzeMsg("Análise enviada para fila — você será notificado quando concluir. 🔔");
-        setTimeout(() => setAnalyzeMsg(null), 8000);
+        setAnalyzeMsg("Analisando documentos... isto pode levar 1–3 minutos.");
+        // Keep isAnalyzing true — the polling effect will flip it when result arrives
       }
     } catch {
       setAnalyzeMsg("Erro ao solicitar análise. Tente novamente.");
       setTimeout(() => setAnalyzeMsg(null), 5000);
-    } finally {
       setIsAnalyzing(false);
     }
   }
