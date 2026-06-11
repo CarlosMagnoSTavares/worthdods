@@ -185,25 +185,33 @@ async def trigger_analysis(property_id: str, background_tasks: BackgroundTasks):
     if not prop.data:
         raise HTTPException(status_code=404, detail="Imóvel não encontrado")
 
-    # Verificar análise recente (evitar spam)
+    # Verificar análise recente (evitar spam). Linhas com erro não bloqueiam retry.
     existing = supabase.table("property_analyses").select(
-        "id,created_at"
+        "id,created_at,erro_analise,resumo_executivo"
     ).eq("property_id", property_id).execute()
 
-    if existing.data:
+    successful = [
+        r for r in (existing.data or [])
+        if not r.get("erro_analise") and r.get("resumo_executivo")
+    ]
+
+    if successful:
         try:
             last = max(
                 datetime.fromisoformat(r["created_at"].replace("Z", "+00:00"))
-                for r in existing.data
+                for r in successful
             )
             if datetime.now(timezone.utc) - last < timedelta(hours=6):
+                full = supabase.table("property_analyses").select("*").eq(
+                    "property_id", property_id
+                ).execute()
                 legal = supabase.table("legal_checks").select("*").eq("property_id", property_id).execute()
                 legal_data = legal.data or []
                 return {
                     "message": "Análise recente já disponível",
                     "property_id": property_id,
                     "status": "cached",
-                    "analyses": existing.data,
+                    "analyses": full.data or [],
                     "legal_checks": legal_data,
                     "legal_summary": summarize_legal_risks(legal_data),
                 }
