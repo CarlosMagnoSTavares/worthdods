@@ -84,7 +84,7 @@ async def fetch_text_via_proxy(url: str) -> Optional[str]:
             )
             if resp.status_code != 200:
                 return None
-            text = resp.text or ""
+            text = resp.content.decode("utf-8", errors="replace") if resp.content else ""
             return text if len(text.strip()) > 100 else None
     except Exception as e:
         logger.warning(f"fetch_text_via_proxy falhou: {e}")
