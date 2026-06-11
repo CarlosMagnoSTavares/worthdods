@@ -18,29 +18,89 @@ BROWSER_HEADERS = {
     ),
     "Accept": "application/pdf,application/octet-stream,*/*;q=0.8",
     "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.5",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "same-origin",
+    "Sec-Fetch-User": "?1",
+    "Upgrade-Insecure-Requests": "1",
     "Referer": "https://venda-imoveis.caixa.gov.br/",
 }
 
 
-async def download_pdf(url: str) -> tuple[Optional[bytes], str]:
-    """Retorna (bytes_ou_None, mensagem_de_status)."""
+async def _try_direct(url: str) -> tuple[Optional[bytes], str]:
+    async with httpx.AsyncClient(timeout=90.0, follow_redirects=True) as client:
+        try:
+            await client.get("https://venda-imoveis.caixa.gov.br/sistema/", headers=BROWSER_HEADERS)
+        except Exception:
+            pass
+        try:
+            resp = await client.get(url, headers=BROWSER_HEADERS)
+        except httpx.TimeoutException:
+            return None, "Timeout"
+        except Exception as e:
+            return None, f"Erro de rede: {e}"
+
+        if resp.status_code != 200:
+            return None, f"HTTP {resp.status_code}"
+        content = resp.content
+        if not content:
+            return None, "Resposta vazia"
+        if content[:4] != b"%PDF":
+            ctype = resp.headers.get("content-type", "?")
+            return None, f"Não é PDF (content-type={ctype})"
+        return content, "ok"
+
+
+async def _try_proxy(url: str) -> tuple[Optional[bytes], str]:
+    """Fallback via r.jina.ai (proxy público gratuito) para contornar bloqueio de IP."""
+    proxy_url = f"https://r.jina.ai/{url}"
     try:
         async with httpx.AsyncClient(timeout=90.0, follow_redirects=True) as client:
-            resp = await client.get(url, headers=BROWSER_HEADERS)
+            resp = await client.get(proxy_url, headers={"User-Agent": BROWSER_HEADERS["User-Agent"]})
             if resp.status_code != 200:
-                return None, f"HTTP {resp.status_code} ao baixar PDF"
+                return None, f"proxy HTTP {resp.status_code}"
             content = resp.content
-            if not content:
-                return None, "Resposta vazia ao baixar PDF"
-            if content[:4] != b"%PDF":
-                ctype = resp.headers.get("content-type", "?")
-                return None, f"Resposta não é PDF (content-type={ctype})"
-            return content, "ok"
-    except httpx.TimeoutException:
-        return None, "Timeout ao baixar PDF"
+            if content[:4] == b"%PDF":
+                return content, "ok"
+            # jina pode retornar texto extraído já — tratamos isso fora
+            return None, "proxy não retornou PDF binário"
     except Exception as e:
-        logger.warning(f"Download PDF falhou {url}: {e}")
-        return None, f"Erro ao baixar PDF: {e}"
+        return None, f"proxy erro: {e}"
+
+
+async def fetch_text_via_proxy(url: str) -> Optional[str]:
+    """Última saída: pega o texto já extraído via r.jina.ai (que faz OCR/parsing remoto)."""
+    proxy_url = f"https://r.jina.ai/{url}"
+    try:
+        async with httpx.AsyncClient(timeout=120.0, follow_redirects=True) as client:
+            resp = await client.get(
+                proxy_url,
+                headers={
+                    "User-Agent": BROWSER_HEADERS["User-Agent"],
+                    "Accept": "text/plain",
+                    "X-Return-Format": "text",
+                },
+            )
+            if resp.status_code != 200:
+                return None
+            text = resp.text or ""
+            return text if len(text.strip()) > 100 else None
+    except Exception as e:
+        logger.warning(f"fetch_text_via_proxy falhou: {e}")
+        return None
+
+
+async def download_pdf(url: str) -> tuple[Optional[bytes], str]:
+    """Retorna (bytes_ou_None, mensagem_de_status). Tenta direto e via proxy."""
+    content, status = await _try_direct(url)
+    if content:
+        return content, "ok"
+    logger.info(f"PDF direto falhou ({status}); tentando proxy r.jina.ai")
+    content2, status2 = await _try_proxy(url)
+    if content2:
+        return content2, "ok (proxy)"
+    return None, f"{status}; proxy: {status2}"
 
 
 def extract_text_pdfplumber(pdf_bytes: bytes) -> tuple[str, int]:
@@ -77,7 +137,14 @@ def extract_text_pymupdf(pdf_bytes: bytes) -> tuple[str, int]:
 async def extract_pdf_text(url: str) -> Optional[dict]:
     pdf_bytes, status = await download_pdf(url)
     if not pdf_bytes:
-        logger.warning(f"PDF {url}: {status}")
+        logger.warning(f"PDF {url}: {status} — tentando extração de texto via proxy")
+        proxy_text = await fetch_text_via_proxy(url)
+        if proxy_text:
+            return {
+                "texto": proxy_text[:50000],
+                "paginas": 0,
+                "metodo": "proxy-text",
+            }
         return {"texto": "", "paginas": 0, "metodo": "fail", "erro": status}
 
     texto, paginas = extract_text_pdfplumber(pdf_bytes)
