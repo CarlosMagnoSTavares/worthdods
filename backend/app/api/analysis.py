@@ -45,7 +45,8 @@ async def _analyze_doc_for_property(supabase, prop: dict, tipo: str) -> Optional
         return None
 
     if not pdf_data or not pdf_data.get("texto"):
-        _save_error(supabase, property_id, tipo, f"PDF de {tipo} indisponível ou sem texto extraível ({url})")
+        reason = (pdf_data or {}).get("erro", "PDF indisponível")
+        _save_error(supabase, property_id, tipo, f"{reason} ({url})")
         return None
 
     try:
