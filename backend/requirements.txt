@@ -9,4 +9,4 @@ beautifulsoup4==4.12.3
 lxml==5.2.2
 APScheduler==3.10.4
 python-multipart==0.0.9
-PyJWT==2.8.0
+PyJWT==2.13.0
