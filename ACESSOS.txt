@@ -1,0 +1,12 @@
+Esse é o sistema que criamos inicialmente já está rodando em hospedagem free e todas as keys na raiz são reais e estão funcionando 
+https://frontend-worthdods.vercel.app/
+
+Usuário e senha do E-mail (Supabase Vercel Render tudo está logando com esse Gmail, obs supabase loga com o git e o git vc loga com o gmail)
+worthdods@gmail.com
+dodsworth@2026
+
+Render api key = rnd_Bd6wbvfAWH7YscjZ7f4jVjNNgmiX
+Vercell api key = vck_6XKEvlPGGKDRiFRavK9UfsH0F9l0rvy5eAi4p2UayGPTYgAaht2orXnf
+Supabase api key = sb_secret_VryNKpCbBLm9dN1j1qflPg_zyFle-oY
+
+ATENÇÃO - esse SAAS precisa ser em portugues Brasil de forma que Brasileiros utilizem e se apropriem da solução 
