@@ -43,8 +43,20 @@ def score_risco_from_analysis(analysis: dict) -> float:
     return max(0.0, min(10.0, round(score, 2)))
 
 
-def calcular_ipl(score_margem_val: float, score_risco_val: float, score_oportunidade: float = 5.0) -> float:
-    return round(score_margem_val * 0.6 + score_risco_val * 0.3 + score_oportunidade * 0.1, 2)
+def score_oportunidade(aceita_fgts: bool = False, aceita_financiamento: bool = False, desconto_pct: float = 0.0) -> float:
+    """Base 5.0; +1 cada FGTS/financiamento; +1 se desconto ≥ 40%."""
+    score = 5.0
+    if aceita_fgts:
+        score += 1.0
+    if aceita_financiamento:
+        score += 1.0
+    if desconto_pct >= 40.0:
+        score += 1.0
+    return min(10.0, score)
+
+
+def calcular_ipl(score_margem_val: float, score_risco_val: float, score_oport: float = 5.0) -> float:
+    return round(score_margem_val * 0.6 + score_risco_val * 0.3 + score_oport * 0.1, 2)
 
 
 def classificar_ipl(ipl: float) -> str:

@@ -159,8 +159,14 @@ async def run_full_analysis(property_id: str):
     # 4. Recalcular IPL final
     try:
         if prop.get("preco") and prop.get("valor_avaliacao"):
+            from app.services.ipl_calculator import score_oportunidade
             sm = score_margem(float(prop["preco"]), float(prop["valor_avaliacao"]))
-            ipl = calcular_ipl(sm, score_risco_final)
+            so = score_oportunidade(
+                aceita_fgts=bool(prop.get("aceita_fgts")),
+                aceita_financiamento=bool(prop.get("aceita_financiamento")),
+                desconto_pct=float(prop.get("desconto_percentual") or 0.0),
+            )
+            ipl = calcular_ipl(sm, score_risco_final, so)
             supabase.table("properties").update(
                 {
                     "ipl_score": ipl,

@@ -132,7 +132,7 @@ export default function DashboardPage() {
 
               {/* Paginação */}
               {data.pages > 1 && (
-                <div className="flex items-center justify-center gap-2">
+                <div className="flex items-center justify-center gap-2 flex-wrap">
                   <button
                     onClick={() => handlePageChange((filters.page || 1) - 1)}
                     disabled={!filters.page || filters.page <= 1}
@@ -142,24 +142,38 @@ export default function DashboardPage() {
                     ← Anterior
                   </button>
 
-                  {Array.from({ length: Math.min(data.pages, 7) }, (_, i) => {
-                    const page = i + 1;
+                  {(() => {
                     const current = filters.page || 1;
-                    return (
-                      <button
-                        key={page}
-                        onClick={() => handlePageChange(page)}
-                        className="px-3 py-2 text-sm rounded-lg border font-medium"
-                        style={{
-                          borderColor: "var(--border)",
-                          background: current === page ? "var(--ink)" : "#fff",
-                          color: current === page ? "var(--gold-light)" : "var(--ink)",
-                        }}
-                      >
-                        {page}
-                      </button>
+                    const total = data.pages;
+                    const pages: (number | "…")[] = [];
+                    if (total <= 7) {
+                      for (let i = 1; i <= total; i++) pages.push(i);
+                    } else {
+                      pages.push(1);
+                      if (current > 3) pages.push("…");
+                      for (let i = Math.max(2, current - 1); i <= Math.min(total - 1, current + 1); i++) pages.push(i);
+                      if (current < total - 2) pages.push("…");
+                      pages.push(total);
+                    }
+                    return pages.map((p, i) =>
+                      p === "…" ? (
+                        <span key={`ellipsis-${i}`} className="px-2 py-2 text-sm" style={{ color: "var(--mid)" }}>…</span>
+                      ) : (
+                        <button
+                          key={p}
+                          onClick={() => handlePageChange(p as number)}
+                          className="px-3 py-2 text-sm rounded-lg border font-medium"
+                          style={{
+                            borderColor: "var(--border)",
+                            background: current === p ? "var(--ink)" : "#fff",
+                            color: current === p ? "var(--gold-light)" : "var(--ink)",
+                          }}
+                        >
+                          {p}
+                        </button>
+                      )
                     );
-                  })}
+                  })()}
 
                   <button
                     onClick={() => handlePageChange((filters.page || 1) + 1)}

@@ -37,6 +37,7 @@ logs/
 *.pem
 *.key
 env.txt
+ACESSOS.txt
 
 # Build artifacts
 frontend/tsconfig.tsbuildinfo

@@ -50,6 +50,13 @@ async def list_properties(
         query = query.eq("aceita_fgts", aceita_fgts)
     if aceita_financiamento is not None:
         query = query.eq("aceita_financiamento", aceita_financiamento)
+    if tem_analise is not None:
+        analysed = get_supabase().table("property_analyses").select("property_id").execute()
+        ids_with = list({r["property_id"] for r in (analysed.data or [])})
+        if tem_analise:
+            query = query.in_("id", ids_with) if ids_with else query.eq("id", "00000000-0000-0000-0000-000000000000")
+        else:
+            query = query.not_.in_("id", ids_with) if ids_with else query
 
     if order_by not in VALID_ORDER_FIELDS:
         order_by = "ipl_score"

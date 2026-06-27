@@ -13,7 +13,7 @@ import asyncio
 import logging
 from typing import Optional
 from app.config import settings
-from app.utils.helpers import parse_brl, parse_discount_pct, build_matricula_url
+from app.utils.helpers import parse_brl, parse_discount_pct, build_matricula_url, build_edital_url
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ async def sync_uf(uf: str) -> dict:
         return stats
 
     from app.database import get_supabase
-    from app.services.ipl_calculator import score_margem, calcular_ipl, classificar_ipl
+    from app.services.ipl_calculator import score_margem, calcular_ipl, classificar_ipl, score_oportunidade
 
     reader = csv.reader(io.StringIO(content), delimiter=";")
     rows = list(reader)
@@ -90,12 +90,18 @@ async def sync_uf(uf: str) -> dict:
             "modalidade": row[10].strip() or None,
             "link_acesso": link_acesso,
             "url_matricula": build_matricula_url(uf, imovel_numero),
+            "url_edital": build_edital_url(uf, imovel_numero),
             "ativo": True,
         }
 
         if preco and avaliacao and avaliacao > 0:
             sm = score_margem(preco, avaliacao)
-            ipl = calcular_ipl(sm, 5.0)
+            so = score_oportunidade(
+                aceita_fgts=record["aceita_fgts"],
+                aceita_financiamento=record["aceita_financiamento"],
+                desconto_pct=desconto or 0.0,
+            )
+            ipl = calcular_ipl(sm, 5.0, so)
             record["ipl_score"] = ipl
             record["ipl_score_margem"] = sm
             record["ipl_classificacao"] = classificar_ipl(ipl)

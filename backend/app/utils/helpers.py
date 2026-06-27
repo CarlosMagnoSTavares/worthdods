@@ -36,6 +36,10 @@ def build_matricula_url(uf: str, imovel_numero: str) -> str:
     return f"https://venda-imoveis.caixa.gov.br/editais/matricula/{uf}/{imovel_numero}.pdf"
 
 
+def build_edital_url(uf: str, imovel_numero: str) -> str:
+    return f"https://venda-imoveis.caixa.gov.br/editais/edital/{uf}/{imovel_numero}.pdf"
+
+
 def truncate_text(text: str, max_chars: int = 40000) -> str:
     if len(text) <= max_chars:
         return text
