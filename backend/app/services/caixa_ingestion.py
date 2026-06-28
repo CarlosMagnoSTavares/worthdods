@@ -26,7 +26,7 @@ ALL_UFS = [
 
 async def sync_uf(uf: str) -> dict:
     url = settings.CAIXA_CSV_BASE_URL.format(uf=uf)
-    stats = {"uf": uf, "processados": 0, "novos": 0, "erros": 0}
+    stats = {"uf": uf, "processados": 0, "novos": 0, "erros": 0, "ids": []}
 
     try:
         async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
@@ -108,6 +108,7 @@ async def sync_uf(uf: str) -> dict:
 
         batch.append(record)
         stats["processados"] += 1
+        stats["ids"].append(imovel_numero)
 
         if len(batch) >= 100:
             try:
@@ -141,16 +142,45 @@ async def sync_all_ufs(ufs: Optional[list] = None) -> dict:
 
     total = 0
     errors = 0
+    all_seen: set[str] = set()
 
     for uf in target_ufs:
         try:
             stats = await sync_uf(uf)
             total += stats["processados"]
             errors += stats["erros"]
+            all_seen.update(stats.get("ids", []))
         except Exception as e:
             logger.error(f"Erro sync {uf}: {e}")
             errors += 1
         await asyncio.sleep(2)
+
+    inativados = 0
+    if errors == 0 and all_seen:
+        try:
+            batch = []
+            page = 0
+            page_size = 1000
+            while True:
+                result = supabase.table("properties").select("imovel_numero").eq("ativo", True).is_("fonte", "null").range(page * page_size, (page + 1) * page_size - 1).execute()
+                if not result.data:
+                    break
+                for row in result.data:
+                    imovel = row.get("imovel_numero")
+                    if imovel and imovel not in all_seen:
+                        batch.append(imovel)
+                page += 1
+                if len(result.data) < page_size:
+                    break
+
+            if batch:
+                for i in range(0, len(batch), 100):
+                    chunk = batch[i:i + 100]
+                    supabase.table("properties").update({"ativo": False}).in_("imovel_numero", chunk).is_("fonte", "null").execute()
+                inativados = len(batch)
+                logger.info(f"Marcados {inativados} imóveis Caixa como inativos (removidos do CSV)")
+        except Exception as e:
+            logger.error(f"Erro ao marcar inativos Caixa: {e}")
 
     if log_id:
         supabase.table("sync_logs").update({
@@ -159,4 +189,4 @@ async def sync_all_ufs(ufs: Optional[list] = None) -> dict:
             "finalizado_em": "now()",
         }).eq("id", log_id).execute()
 
-    return {"total": total, "errors": errors, "ufs": target_ufs}
+    return {"total": total, "errors": errors, "ufs": target_ufs, "inativados": inativados}

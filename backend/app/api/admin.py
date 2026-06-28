@@ -68,6 +68,27 @@ async def admin_analyze(
     return {"message": "Análise iniciada", "property_id": property_id}
 
 
+@router.post("/sync-and-cleanup")
+async def sync_and_cleanup(
+    background_tasks: BackgroundTasks,
+    x_admin_key: Optional[str] = Header(None),
+):
+    require_admin(x_admin_key)
+    from app.services.caixa_ingestion import sync_all_ufs
+    from app.services.santander_ingestion import sync_santander
+    from app.services.biasi_ingestion import sync_biasi
+
+    background_tasks.add_task(sync_all_ufs)
+    background_tasks.add_task(sync_santander)
+    background_tasks.add_task(sync_biasi)
+
+    return {
+        "message": "Sincronização e limpeza iniciadas para todas as fontes",
+        "fontes": ["caixa", "santander", "biasi"],
+        "status": "processing",
+    }
+
+
 @router.delete("/properties/{property_id}/analysis")
 async def delete_analysis(
     property_id: str,

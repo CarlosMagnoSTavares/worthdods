@@ -156,7 +156,7 @@ async def sync_santander(ufs: Optional[List[str]] = None) -> dict:
     from app.services.ipl_calculator import score_margem, calcular_ipl, classificar_ipl, score_oportunidade
 
     target_ufs = ufs or settings.ufs_list
-    stats = {"fonte": "santander", "processados": 0, "novos": 0, "erros": 0, "ufs": target_ufs}
+    stats = {"fonte": "santander", "processados": 0, "novos": 0, "erros": 0, "ufs": target_ufs, "ids": []}
 
     supabase = get_supabase()
 
@@ -233,6 +233,7 @@ async def sync_santander(ufs: Optional[List[str]] = None) -> dict:
 
                         batch.append(record)
                         stats["processados"] += 1
+                        stats["ids"].append(imovel_numero)
 
                     if batch:
                         try:
@@ -247,6 +248,32 @@ async def sync_santander(ufs: Optional[List[str]] = None) -> dict:
             except Exception as e:
                 logger.error(f"Erro sync Santander {uf}: {e}")
                 stats["erros"] += 1
+
+    seen_ids = stats.get("ids", [])
+    if stats["erros"] == 0 and seen_ids:
+        try:
+            batch = []
+            page = 0
+            page_size = 1000
+            while True:
+                result = supabase.table("properties").select("imovel_numero").eq("ativo", True).eq("fonte", "santander").range(page * page_size, (page + 1) * page_size - 1).execute()
+                if not result.data:
+                    break
+                for row in result.data:
+                    imovel = row.get("imovel_numero")
+                    if imovel and imovel not in seen_ids:
+                        batch.append(imovel)
+                page += 1
+                if len(result.data) < page_size:
+                    break
+
+            if batch:
+                for i in range(0, len(batch), 100):
+                    chunk = batch[i:i + 100]
+                    supabase.table("properties").update({"ativo": False}).in_("imovel_numero", chunk).eq("fonte", "santander").execute()
+                logger.info(f"Marcados {len(batch)} imóveis Santander como inativos")
+        except Exception as e:
+            logger.error(f"Erro ao marcar inativos Santander: {e}")
 
     if log_id:
         supabase.table("sync_logs").update({
