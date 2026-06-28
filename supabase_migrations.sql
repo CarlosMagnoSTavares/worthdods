@@ -81,7 +81,27 @@ create table if not exists public.property_analyses (
 create index if not exists idx_analyses_property on public.property_analyses(property_id);
 create index if not exists idx_analyses_tipo on public.property_analyses(tipo);
 
--- Migration 004: Legal Checks
+-- Migration 004b: Debt extraction columns
+-- Extend property_analyses to support 'dividas' tipo and debt-specific fields
+alter table public.property_analyses
+  drop constraint if exists property_analyses_tipo_check;
+
+alter table public.property_analyses
+  add constraint property_analyses_tipo_check
+  check (tipo in ('matricula', 'edital', 'completo', 'dividas'));
+
+alter table public.property_analyses
+  add column if not exists dividas jsonb default '[]'::jsonb,
+  add column if not exists tem_iptu_pendente boolean default false,
+  add column if not exists tem_condominio_pendente boolean default false,
+  add column if not exists tem_contribuicao_melhoria boolean default false,
+  add column if not exists tem_propter_rem boolean default false,
+  add column if not exists total_dividas_estimado numeric(15,2) default 0,
+  add column if not exists resumo_dividas text,
+  add column if not exists alerta_comprador text,
+  add column if not exists risco_dividas_score numeric(4,2) default 0,
+  add column if not exists total_dividas_transferidas integer default 0,
+  add column if not exists valor_total_transferido numeric(15,2) default 0;
 create table if not exists public.legal_checks (
   id uuid primary key default uuid_generate_v4(),
   property_id uuid not null references public.properties(id) on delete cascade,
@@ -198,3 +218,27 @@ create trigger analyses_updated_at
 -- Migration 010: Legal checks risk classification
 alter table public.legal_checks add column if not exists tipo_risco text;
 alter table public.legal_checks add column if not exists severidade text;
+
+-- Migration 011: Add fonte column for multi-source tracking
+-- Note: fonte column already exists in properties table with default 'caixa'
+-- This migration adds an index for efficient filtering by source
+create index if not exists idx_properties_fonte on public.properties(fonte);
+
+-- Migration 012: Add dividas (structured debt details) to property_analyses
+alter table public.property_analyses add column if not exists dividas jsonb default '[]'::jsonb;
+alter table public.property_analyses add column if not exists tem_iptu_pendente boolean default false;
+alter table public.property_analyses add column if not exists tem_condominio_pendente boolean default false;
+alter table public.property_analyses add column if not exists tem_contribuicao_melhoria boolean default false;
+alter table public.property_analyses add column if not exists tem_propter_rem boolean default false;
+alter table public.property_analyses add column if not exists total_dividas_estimado numeric(15,2) default 0.0;
+alter table public.property_analyses add column if not exists resumo_dividas text;
+alter table public.property_analyses add column if not exists alerta_comprador text;
+alter table public.property_analyses add column if not exists risco_dividas_score numeric(4,2) default 0.0;
+alter table public.property_analyses add column if not exists total_dividas_transferidas integer default 0;
+alter table public.property_analyses add column if not exists valor_total_transferido numeric(15,2) default 0.0;
+
+-- Migration 013: Add occupancy risk fields for WOR-26
+alter table public.property_analyses add column if not exists ocupacao_risco_nivel text;
+alter table public.property_analyses add column if not exists ocupacao_prazo_desocupacao text;
+alter table public.property_analyses add column if not exists ocupacao_custo_estimado text;
+alter table public.property_analyses add column if not exists ocupacao_sinais jsonb default '[]'::jsonb;

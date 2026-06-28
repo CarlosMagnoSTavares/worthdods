@@ -1,0 +1,279 @@
+"""
+Scraping e parse de imóveis do Santander Imóveis (santanderimoveis.com.br).
+O site lista imóveis de leilão e venda direta do Banco Santander.
+"""
+
+import httpx
+import logging
+import re
+import json
+from typing import Optional, List, Dict
+from bs4 import BeautifulSoup
+from app.config import settings
+
+logger = logging.getLogger(__name__)
+
+SANTANDER_BASE_URL = "https://www.santanderimoveis.com.br"
+SANTANDER_SEARCH_URL = f"{SANTANDER_BASE_URL}/busca"
+
+
+async def fetch_santander_page(
+    client: httpx.AsyncClient,
+    page: int = 1,
+    uf: Optional[str] = None,
+    tipo: Optional[str] = None,
+) -> Optional[str]:
+    """Fetch a page of Santander property listings."""
+    params = {"pagina": page}
+    if uf:
+        params["uf"] = uf
+    if tipo:
+        params["tipo"] = tipo
+
+    try:
+        resp = await client.get(SANTANDER_SEARCH_URL, params=params)
+        if resp.status_code == 200:
+            return resp.text
+        logger.warning(f"Santander page {page}: status {resp.status_code}")
+        return None
+    except Exception as e:
+        logger.error(f"Erro fetch Santander page {page}: {e}")
+        return None
+
+
+def parse_santander_listing(html: str) -> List[Dict]:
+    """Parse Santander property listings from HTML."""
+    soup = BeautifulSoup(html, "lxml")
+    properties = []
+
+    cards = soup.select(".property-card, .card-imovel, .imovel-item, article")
+    if not cards:
+        cards = soup.select("[class*='imovel'], [class*='property'], [class*='card']")
+
+    for card in cards:
+        try:
+            prop = {}
+
+            title_el = card.select_one("h2, h3, .title, .titulo, [class*='title']")
+            if title_el:
+                prop["titulo"] = title_el.get_text(strip=True)
+            else:
+                continue
+
+            price_el = card.select_one(".price, .preco, [class*='price'], [class*='preco']")
+            if price_el:
+                price_text = price_el.get_text(strip=True)
+                prop["preco_texto"] = price_text
+                prop["preco"] = parse_brl_santander(price_text)
+
+            aval_el = card.select_one(".avaliacao, [class*='avaliacao'], [class*='valor-avaliacao']")
+            if aval_el:
+                aval_text = aval_el.get_text(strip=True)
+                prop["valor_avaliacao"] = parse_brl_santander(aval_text)
+
+            link_el = card.select_one("a[href*='detalhe'], a[href*='imovel']")
+            if link_el:
+                href = link_el.get("href", "")
+                if not href.startswith("http"):
+                    href = f"{SANTANDER_BASE_URL}{href}"
+                prop["link_acesso"] = href
+
+            location_el = card.select_one(".location, .localizacao, [class*='location'], [class*='local']")
+            if location_el:
+                loc_text = location_el.get_text(strip=True)
+                prop["endereco"] = loc_text
+                uf_match = re.search(r"/([A-Z]{2})", loc_text)
+                if uf_match:
+                    prop["uf"] = uf_match.group(1)
+                city_match = re.match(r"([^/-]+)", loc_text)
+                if city_match:
+                    prop["cidade"] = city_match.group(1).strip()
+
+            type_el = card.select_one(".type, .tipo, [class*='tipo']")
+            if type_el:
+                prop["tipo_imovel"] = type_el.get_text(strip=True)
+
+            desc_el = card.select_one(".description, .descricao, [class*='desc']")
+            if desc_el:
+                prop["descricao"] = desc_el.get_text(strip=True)[:500]
+
+            area_el = card.select_one("[class*='area']")
+            if area_el:
+                area_text = area_el.get_text(strip=True)
+                area_match = re.search(r"([\d.,]+)\s*m", area_text)
+                if area_match:
+                    prop["area_m2"] = parse_area(area_match.group(1))
+
+            quartos_el = card.select_one("[class*='quarto'], [class*='dorm']")
+            if quartos_el:
+                q_match = re.search(r"(\d+)", quartos_el.get_text())
+                if q_match:
+                    prop["quartos"] = int(q_match.group(1))
+
+            if prop.get("titulo") and (prop.get("preco") or prop.get("valor_avaliacao")):
+                properties.append(prop)
+
+        except Exception as e:
+            logger.debug(f"Erro parse card Santander: {e}")
+            continue
+
+    return properties
+
+
+def parse_brl_santander(value: str) -> Optional[float]:
+    """Parse Brazilian Real currency string to float."""
+    if not value:
+        return None
+    cleaned = re.sub(r"[R$\s]", "", value).replace(".", "").replace(",", ".")
+    cleaned = re.sub(r"[^\d.]", "", cleaned)
+    try:
+        return float(cleaned) if cleaned else None
+    except (ValueError, TypeError):
+        return None
+
+
+def parse_area(value: str) -> Optional[float]:
+    """Parse area string like '150,5' to float."""
+    if not value:
+        return None
+    cleaned = value.replace(",", ".")
+    try:
+        return float(cleaned)
+    except (ValueError, TypeError):
+        return None
+
+
+def calculate_discount(preco: Optional[float], avaliacao: Optional[float]) -> Optional[float]:
+    """Calculate discount percentage from price and appraisal."""
+    if preco and avaliacao and avaliacao > 0:
+        return round((avaliacao - preco) / avaliacao * 100, 2)
+    return None
+
+
+async def sync_santander(ufs: Optional[List[str]] = None) -> dict:
+    """Sync properties from Santander Imóveis."""
+    from app.database import get_supabase
+    from app.services.ipl_calculator import score_margem, calcular_ipl, classificar_ipl, score_oportunidade
+
+    target_ufs = ufs or settings.ufs_list
+    stats = {"fonte": "santander", "processados": 0, "novos": 0, "erros": 0, "ufs": target_ufs}
+
+    supabase = get_supabase()
+
+    log_entry = supabase.table("sync_logs").insert({
+        "tipo": "santander_scraping",
+        "status": "running"
+    }).execute()
+    log_id = log_entry.data[0]["id"] if log_entry.data else None
+
+    async with httpx.AsyncClient(
+        timeout=60.0,
+        follow_redirects=True,
+        headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+        }
+    ) as client:
+        for uf in target_ufs:
+            try:
+                for page in range(1, 6):
+                    html = await fetch_santander_page(client, page=page, uf=uf)
+                    if not html:
+                        break
+
+                    properties = parse_santander_listing(html)
+                    if not properties:
+                        break
+
+                    batch = []
+                    for prop in properties:
+                        imovel_numero = generate_santander_id(prop)
+                        if not imovel_numero:
+                            continue
+
+                        preco = prop.get("preco")
+                        avaliacao = prop.get("valor_avaliacao")
+                        desconto = calculate_discount(preco, avaliacao)
+
+                        record = {
+                            "imovel_numero": imovel_numero,
+                            "uf": prop.get("uf", uf).upper(),
+                            "cidade": prop.get("cidade", "N/A"),
+                            "bairro": None,
+                            "endereco": prop.get("endereco", prop.get("titulo", "")),
+                            "preco": preco or 0,
+                            "valor_avaliacao": avaliacao,
+                            "desconto_percentual": desconto,
+                            "aceita_financiamento": True,
+                            "aceita_fgts": False,
+                            "descricao": prop.get("descricao"),
+                            "modalidade": "leilao",
+                            "link_acesso": prop.get("link_acesso"),
+                            "url_matricula": None,
+                            "url_edital": None,
+                            "tipo_imovel": prop.get("tipo_imovel"),
+                            "area_m2": prop.get("area_m2"),
+                            "quartos": prop.get("quartos"),
+                            "fonte": "santander",
+                            "ativo": True,
+                        }
+
+                        if preco and avaliacao and avaliacao > 0:
+                            sm = score_margem(preco, avaliacao)
+                            so = score_oportunidade(
+                                aceita_fgts=False,
+                                aceita_financiamento=True,
+                                desconto_pct=desconto or 0.0,
+                            )
+                            ipl = calcular_ipl(sm, 5.0, so)
+                            record["ipl_score"] = ipl
+                            record["ipl_score_margem"] = sm
+                            record["ipl_classificacao"] = classificar_ipl(ipl)
+
+                        batch.append(record)
+                        stats["processados"] += 1
+
+                    if batch:
+                        try:
+                            supabase.table("properties").upsert(
+                                batch, on_conflict="imovel_numero"
+                            ).execute()
+                            stats["novos"] += len(batch)
+                        except Exception as e:
+                            logger.error(f"Upsert batch Santander {uf}: {e}")
+                            stats["erros"] += 1
+
+            except Exception as e:
+                logger.error(f"Erro sync Santander {uf}: {e}")
+                stats["erros"] += 1
+
+    if log_id:
+        supabase.table("sync_logs").update({
+            "status": "completed" if stats["erros"] == 0 else "partial",
+            "registros_processados": stats["processados"],
+            "registros_novos": stats["novos"],
+            "finalizado_em": "now()",
+        }).eq("id", log_id).execute()
+
+    logger.info(f"Sync Santander: {stats['processados']} imóveis processados")
+    return stats
+
+
+def generate_santander_id(prop: Dict) -> Optional[str]:
+    """Generate a unique ID for a Santander property."""
+    link = prop.get("link_acesso", "")
+    if link:
+        id_match = re.search(r"/(\d+)", link)
+        if id_match:
+            return f"santander-{id_match.group(1)}"
+
+    titulo = prop.get("titulo", "")
+    preco = prop.get("preco", 0)
+    if titulo and preco:
+        hash_input = f"{titulo}-{preco}"
+        import hashlib
+        hash_val = hashlib.md5(hash_input.encode()).hexdigest()[:8]
+        return f"santander-{hash_val}"
+
+    return None

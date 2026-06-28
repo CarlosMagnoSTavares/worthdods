@@ -33,6 +33,18 @@ Responda APENAS com JSON válido neste formato:
       "clausula": "Trecho relevante da matrícula"
     }}
   ],
+  "dividas": [
+    {{
+      "tipo": "IPTU|CONDOMINIO|CONTRIBUICAO_MELHORIA|PROPTER_REM|HIPOTECA|PENHORA|OUTRO",
+      "descricao": "Descrição específica da dívida ou ônus registrado",
+      "valor_estimado": null,
+      "periodo": "Período a que se refere",
+      "responsavel": "COMPRADOR|VENDEDOR|NAO_INFORMADO",
+      "severidade": "BAIXA|MEDIA|ALTA|CRITICA",
+      "clausula": "Trecho relevante da matrícula",
+      "garantia_comprador": false
+    }}
+  ],
   "pontos_positivos": ["aspectos positivos encontrados"],
   "risco_evicao": false,
   "score_risco": 8.5,
@@ -44,7 +56,60 @@ REGRAS:
 - risco_evicao = true se a matrícula NÃO garante proteção ao comprador
 - consolidacao_caixa = true se a Caixa já consolidou a propriedade (positivo para comprador)
 - score_risco: 10 = sem riscos, diminua conforme gravidade
-- Baseie-se APENAS no texto fornecido"""
+- Baseie-se APENAS no texto fornecido
+
+REGRAS PARA DÍVIDAS (campo "dividas"):
+- Extraia TODAS as dívidas, ônus e gravames registrados na matrícula
+- IPTU: débitos de IPTU, certidões negativas pendentes, inscrições em dívida ativa
+- CONDOMINIO: cotas condominiais em atraso, débitos de condomínio
+- CONTRIBUICAO_MELHORIA: contribuições de melhoria que incidam sobre o imóvel
+- PROPTER_REM: obrigações propter rem que acompanham o imóvel
+- HIPOTECA/PENHORA: gravames judiciais ou convencionais
+- Se houver penhora ou hipoteca, avalie se afeta a comercialização do imóvel
+- Se valor não for mencionado, deixe null — NÃO invente valores"""
+
+PROMPT_DIVIDAS = """Você é especialista em identificação de débitos e encumbrâncias em documentos de leilão imobiliário brasileiro.
+
+Analise o texto abaixo (pode ser edital ou matrícula) e extraia TODOS os débitos, taxas e obrigações financeiras que o comprador/arrematante pode herdar.
+
+TEXTO:
+{texto}
+
+Responda APENAS com JSON válido neste formato:
+{{
+  "dividas": [
+    {{
+      "tipo": "IPTU|CONDOMINIO|CONTRIBUICAO_MELHORIA|PROPTER_REM|IPTU_TRANSFERIDO|CONDOMINIO_TRANSFERIDO|ALUGUEL_ATRASADO|TAXA_LIXO|CND_NAO_OBTIDA|OUTRO",
+      "descricao": "Descrição clara e específica da dívida ou obrigação",
+      "valor_estimado": null,
+      "valor_texto": "R$ 1.234,56" ou "Não informado",
+      "periodo": "2024-2025" ou "Não informado",
+      "responsavel": "COMPRADOR|VENDEDOR|AMBOS|NAO_INFORMADO",
+      "severidade": "BAIXA|MEDIA|ALTA|CRITICA",
+      "transferida_ao_comprador": true,
+      "base_legal": "Art. 130 CC" ou "",
+      "clausula_documento": "Trecho exato do documento que menciona este débito",
+      "ocorrencia": "MENCIONADO|VALOR_ESPECIFICO|NAO_ENCONTRADO"
+    }}
+  ],
+  "tem_iptu_pendente": false,
+  "tem_condominio_pendente": false,
+  "tem_contribuicao_melhoria": false,
+  "tem_propter_rem": false,
+  "total_dividas_estimado": 0.0,
+  "resumo_dividas": "Resumo das dívidas encontradas em 2-3 linhas",
+  "alerta_comprador": "Mensagem de alerta clara sobre o impacto financeiro para o comprador"
+}}
+
+REGRAS CRÍTICAS:
+- Identifique dívidas MESMO quando o documento diz que "não há débitos" — procure contradições
+- IPTU: imposto municipal que pode estar pendente e ser transferido por propter rem
+- Condomínio: taxas condominiais atrasadas são obrigação propter rem e seguem o imóvel
+- Contribuição de melhoria: taxa cobrada por melhorias públicas (asfalto, praça, etc.)
+- Propter rem: dívidas que "grudam" no imóvel e se transferem ao novo proprietário
+- Se não houver valor específico, coloque null em valor_estimado mas NÃO ignore o débito
+- transferida_ao_comprador = true quando o edital NÃO isenta o comprador ou quando a obrigação é propter rem
+- Priorize a proteção do comprador: na dúvida, marque como transferida ao comprador"""
 
 PROMPT_EDITAL = """Você é especialista em análise de editais de leilão imobiliário no Brasil.
 
@@ -73,6 +138,18 @@ Responda APENAS com JSON válido neste formato:
       "clausula": "Trecho exato do edital"
     }}
   ],
+  "dividas": [
+    {{
+      "tipo": "IPTU|CONDOMINIO|CONTRIBUICAO_MELHORIA|PROPTER_REM|IPTU_ALTERADO|OUTRO",
+      "descricao": "Descrição específica da dívida ou ônus",
+      "valor_estimado": null,
+      "periodo": "Período a que se refere (ex: 2024-2025, em atraso desde 01/2024)",
+      "responsavel": "COMPRADOR|VENDEDOR|NAO_INFORMADO",
+      "severidade": "BAIXA|MEDIA|ALTA|CRITICA",
+      "clausula": "Trecho exato do edital que menciona esta dívida",
+      "garantia_comprador": false
+    }}
+  ],
   "risco_evicao": false,
   "risco_divida_iptu": false,
   "risco_divida_condominio": false,
@@ -91,6 +168,16 @@ REGRAS CRÍTICAS:
 - risco_divida_iptu = true se IPTU pendente é transferido ao comprador
 - risco_divida_condominio = true se dívida de condomínio é transferida ao comprador
 - risco_ocupacao = true se imóvel está ocupado E o edital não garante desocupação
+
+REGRAS PARA DÍVIDAS (campo "dividas"):
+- Extraia TODAS as dívidas, ônus e encargos mencionados no edital, mesmo que sejam genéricos
+- IPTU: busque menções a IPTU, imposto predial, débitos tributários, certidões negativas
+- CONDOMINIO: busque cotas condominiais, débitos de condomínio, contribuições ordinárias/extraordinárias
+- CONTRIBUICAO_MELHORIA: busque contribuições de melhoria, obras de infraestrutura que geram ônus ao adquirente
+- PROPTER_REM: busque obrigações propter rem (débitos que "seguem o imóvel" independentemente do proprietário)
+- Se o edital diz que o comprador assume dívidas, garantia_comprador = true
+- Se há cláusula de "imissão na posse em X dias", registre o período
+- Se valor não for mencionado, deixe null — NÃO invente valores
 - Se não houver informação clara, assuma o pior caso (proteção ao investidor)"""
 
 
@@ -205,7 +292,12 @@ async def analyze_document(texto: str, tipo: str) -> Optional[dict]:
     if not settings.OPENROUTER_API_KEY:
         return {"erro": "OPENROUTER_API_KEY não configurada"}
 
-    prompt_template = PROMPT_MATRICULA if tipo == "matricula" else PROMPT_EDITAL
+    if tipo == "dividas":
+        prompt_template = PROMPT_DIVIDAS
+    elif tipo == "matricula":
+        prompt_template = PROMPT_MATRICULA
+    else:
+        prompt_template = PROMPT_EDITAL
     prompt = prompt_template.format(texto=(texto or "")[:30000])
 
     last_err = "Falha desconhecida"

@@ -14,20 +14,32 @@ def require_admin(x_admin_key: Optional[str] = Header(None)):
 @router.post("/sync")
 async def trigger_sync(
     background_tasks: BackgroundTasks,
+    fonte: Optional[str] = None,
     ufs: Optional[str] = None,
     x_admin_key: Optional[str] = Header(None),
 ):
     require_admin(x_admin_key)
     from app.services.caixa_ingestion import sync_all_ufs
+    from app.services.santander_ingestion import sync_santander
+    from app.services.biasi_ingestion import sync_biasi
 
     ufs_list: Optional[List[str]] = None
     if ufs:
         ufs_list = [u.strip().upper() for u in ufs.split(",")]
 
-    background_tasks.add_task(sync_all_ufs, ufs_list)
+    fontes = ["caixa", "santander", "biasi"] if not fonte else [fonte.lower()]
+
+    for f in fontes:
+        if f == "caixa":
+            background_tasks.add_task(sync_all_ufs, ufs_list)
+        elif f == "santander":
+            background_tasks.add_task(sync_santander, ufs_list)
+        elif f == "biasi":
+            background_tasks.add_task(sync_biasi, ufs_list)
 
     return {
         "message": "Sincronização iniciada",
+        "fontes": fontes,
         "ufs": ufs_list or settings.ufs_list,
         "status": "processing",
     }

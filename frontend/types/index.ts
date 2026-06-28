@@ -37,7 +37,7 @@ export interface PropertyDetail extends Property {
 export interface Analysis {
   id: string;
   property_id: string;
-  tipo: "matricula" | "edital" | "completo";
+  tipo: "matricula" | "edital" | "completo" | "dividas";
   resumo_executivo?: string;
   recomendacao?: string;
   nivel_risco?: string;
@@ -49,11 +49,50 @@ export interface Analysis {
   risco_irregularidade: boolean;
   risco_ambiental: boolean;
   riscos_detalhados: RiscoItem[];
+  dividas: DividaItem[];
   pontos_positivos: string[];
   score_risco?: number;
   modelo_ia?: string;
   erro_analise?: string;
   created_at?: string;
+  // Debt-specific fields
+  tem_iptu_pendente?: boolean;
+  tem_condominio_pendente?: boolean;
+  tem_contribuicao_melhoria?: boolean;
+  tem_propter_rem?: boolean;
+  total_dividas_estimado?: number;
+  resumo_dividas?: string;
+  alerta_comprador?: string;
+  risco_dividas_score?: number;
+  total_dividas_transferidas?: number;
+  valor_total_transferido?: number;
+  // Occupancy risk fields
+  status_ocupacao?: string;
+  ocupacao_risco_nivel?: string;
+  ocupacao_prazo_desocupacao?: string;
+  ocupacao_custo_estimado?: string;
+  ocupacao_sinais?: OccupancySignal[];
+}
+
+export interface OccupancySignal {
+  sinal: string;
+  nivel: string;
+  peso: number;
+  descricao: string;
+}
+
+export interface DividaItem {
+  tipo: string;
+  descricao: string;
+  valor_estimado?: number;
+  valor_texto?: string;
+  periodo?: string;
+  responsavel?: string;
+  severidade?: string;
+  transferida_ao_comprador?: boolean;
+  base_legal?: string;
+  clausula_documento?: string;
+  ocorrencia?: string;
 }
 
 export interface RiscoItem {

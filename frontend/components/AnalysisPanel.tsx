@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { Analysis } from "@/types";
 import { RiskFlags } from "./RiskFlags";
+import { DebtDetails } from "./DebtDetails";
+import { OccupancyRisk } from "./OccupancyRisk";
 import { severidadeBadge } from "@/lib/utils";
 
 interface AnalysisPanelProps {
@@ -12,10 +14,11 @@ interface AnalysisPanelProps {
 }
 
 export function AnalysisPanel({ analyses, onAnalyze, isAnalyzing }: AnalysisPanelProps) {
-  const [activeTab, setActiveTab] = useState<"matricula" | "edital">("edital");
+  const [activeTab, setActiveTab] = useState<"matricula" | "edital" | "dividas">("edital");
   const [openRisk, setOpenRisk] = useState<number | null>(null);
 
   const analysis = analyses.find((a) => a.tipo === activeTab);
+  const debtAnalysis = analyses.find((a) => a.tipo === "dividas");
   const hasAny = analyses.length > 0;
 
   return (
@@ -28,8 +31,8 @@ export function AnalysisPanel({ analyses, onAnalyze, isAnalyzing }: AnalysisPane
         className="flex border-b"
         style={{ borderColor: "var(--border)" }}
       >
-        {(["edital", "matricula"] as const).map((tab) => {
-          const has = analyses.some((a) => a.tipo === tab);
+        {(["edital", "matricula", "dividas"] as const).map((tab) => {
+          const has = tab === "dividas" ? !!debtAnalysis : analyses.some((a) => a.tipo === tab);
           return (
             <button
               key={tab}
@@ -42,7 +45,7 @@ export function AnalysisPanel({ analyses, onAnalyze, isAnalyzing }: AnalysisPane
                 color: activeTab === tab ? "var(--gold)" : "var(--mid)",
               }}
             >
-              {tab === "edital" ? "📋 Edital" : "📄 Matrícula"}
+              {tab === "edital" ? "📋 Edital" : tab === "matricula" ? "📄 Matrícula" : "💰 Débitos"}
               {has && (
                 <span
                   className="ml-1.5 text-xs px-1.5 py-0.5 rounded-full"
@@ -89,7 +92,9 @@ export function AnalysisPanel({ analyses, onAnalyze, isAnalyzing }: AnalysisPane
             <p className="text-sm" style={{ color: "var(--mid)" }}>
               {activeTab === "edital"
                 ? "Análise do edital não disponível."
-                : "Análise da matrícula não disponível."}
+                : activeTab === "matricula"
+                ? "Análise da matrícula não disponível."
+                : "Análise de débitos não disponível."}
             </p>
             <button
               onClick={onAnalyze}
@@ -112,6 +117,112 @@ export function AnalysisPanel({ analyses, onAnalyze, isAnalyzing }: AnalysisPane
             <p className="text-xs mt-1" style={{ color: "var(--mid)" }}>
               {analysis.erro_analise}
             </p>
+          </div>
+        ) : activeTab === "dividas" && debtAnalysis ? (
+          /* Análise de débitos */
+          <div className="space-y-5">
+            {/* Alerta de débitos */}
+            {debtAnalysis.alerta_comprador && (
+              <div
+                className="rounded-lg p-4"
+                style={{ background: "#fff8e1", border: "1px solid #ffb74d" }}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-lg">⚠️</span>
+                  <span className="font-semibold text-sm" style={{ color: "var(--ink)" }}>
+                    Alerta para o Comprador
+                  </span>
+                </div>
+                <p className="text-sm" style={{ color: "var(--ink)" }}>
+                  {debtAnalysis.alerta_comprador}
+                </p>
+              </div>
+            )}
+
+            {/* Resumo de débitos */}
+            {debtAnalysis.resumo_dividas && (
+              <div>
+                <h4 className="text-xs uppercase tracking-wider font-semibold mb-2" style={{ color: "var(--mid)" }}>
+                  Resumo dos Débitos
+                </h4>
+                <p className="text-sm leading-relaxed" style={{ color: "var(--ink)" }}>
+                  {debtAnalysis.resumo_dividas}
+                </p>
+              </div>
+            )}
+
+            {/* Estatísticas de débitos */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="rounded-lg p-3 border" style={{ background: "#fff", borderColor: "var(--border)" }}>
+                <div className="text-xs uppercase tracking-wider" style={{ color: "var(--mid)" }}>Total Débitos</div>
+                <div className="font-serif text-lg font-bold" style={{ color: "var(--ink)" }}>
+                  {debtAnalysis.dividas?.length || 0}
+                </div>
+              </div>
+              <div className="rounded-lg p-3 border" style={{ background: "#fff", borderColor: "var(--border)" }}>
+                <div className="text-xs uppercase tracking-wider" style={{ color: "var(--mid)" }}>Transferidos</div>
+                <div className="font-serif text-lg font-bold" style={{ color: "var(--red)" }}>
+                  {debtAnalysis.total_dividas_transferidas || 0}
+                </div>
+              </div>
+              <div className="rounded-lg p-3 border" style={{ background: "#fff", borderColor: "var(--border)" }}>
+                <div className="text-xs uppercase tracking-wider" style={{ color: "var(--mid)" }}>Valor Total</div>
+                <div className="font-serif text-lg font-bold" style={{ color: "var(--gold)" }}>
+                  {debtAnalysis.valor_total_transferido
+                    ? `R$ ${debtAnalysis.valor_total_transferido.toLocaleString("pt-BR")}`
+                    : "—"}
+                </div>
+              </div>
+              <div className="rounded-lg p-3 border" style={{ background: "#fff", borderColor: "var(--border)" }}>
+                <div className="text-xs uppercase tracking-wider" style={{ color: "var(--mid)" }}>Score Risco</div>
+                <div className="font-serif text-lg font-bold" style={{ color: debtAnalysis.risco_dividas_score ? "var(--red)" : "var(--green)" }}>
+                  {debtAnalysis.risco_dividas_score?.toFixed(1) || "0.0"}
+                </div>
+              </div>
+            </div>
+
+            {/* Flags de débitos */}
+            <div className="flex flex-wrap gap-2">
+              {debtAnalysis.tem_iptu_pendente && (
+                <span className="px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700 border border-red-300">
+                  IPTU Pendente
+                </span>
+              )}
+              {debtAnalysis.tem_condominio_pendente && (
+                <span className="px-3 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-700 border border-orange-300">
+                  Condomínio Pendente
+                </span>
+              )}
+              {debtAnalysis.tem_contribuicao_melhoria && (
+                <span className="px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700 border border-yellow-300">
+                  Contribuição de Melhoria
+                </span>
+              )}
+              {debtAnalysis.tem_propter_rem && (
+                <span className="px-3 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-700 border border-purple-300">
+                  Propter Rem
+                </span>
+              )}
+            </div>
+
+            {/* Lista de débitos */}
+            {debtAnalysis.dividas && debtAnalysis.dividas.length > 0 && (
+              <div>
+                <h4 className="text-xs uppercase tracking-wider font-semibold mb-2" style={{ color: "var(--mid)" }}>
+                  Débitos e Encumbrâncias ({debtAnalysis.dividas.length})
+                </h4>
+                <DebtDetails dividas={debtAnalysis.dividas} />
+              </div>
+            )}
+
+            {/* Footer */}
+            <div
+              className="text-xs pt-3 border-t"
+              style={{ color: "var(--mid)", borderColor: "var(--border)" }}
+            >
+              Analisado por {debtAnalysis.modelo_ia} ·{" "}
+              {debtAnalysis.created_at && new Date(debtAnalysis.created_at).toLocaleDateString("pt-BR")}
+            </div>
           </div>
         ) : (
           /* Análise disponível */
@@ -169,6 +280,62 @@ export function AnalysisPanel({ analyses, onAnalyze, isAnalyzing }: AnalysisPane
               </h4>
               <RiskFlags analysis={analysis} />
             </div>
+
+            {/* Débitos detalhados */}
+            {analysis.dividas && analysis.dividas.length > 0 && (
+              <div>
+                <h4 className="text-xs uppercase tracking-wider font-semibold mb-2" style={{ color: "var(--mid)" }}>
+                  Débitos e Encumbrâncias ({analysis.dividas.length})
+                </h4>
+                <DebtDetails dividas={analysis.dividas} />
+              </div>
+            )}
+
+            {/* Risco de ocupação */}
+            {analysis.tipo === "edital" && (
+              <div>
+                <h4 className="text-xs uppercase tracking-wider font-semibold mb-2" style={{ color: "var(--mid)" }}>
+                  Risco de Ocupação
+                </h4>
+                <OccupancyRisk
+                  statusOcupacao={analysis.status_ocupacao}
+                  riscoNivel={analysis.ocupacao_risco_nivel}
+                  prazoDesocupacao={analysis.ocupacao_prazo_desocupacao}
+                  custoEstimado={analysis.ocupacao_custo_estimado}
+                  sinais={analysis.ocupacao_sinais}
+                />
+              </div>
+            )}
+
+            {/* Alerta de débitos (se disponível) */}
+            {analysis.alerta_comprador && (
+              <div
+                className="rounded-lg p-4"
+                style={{ background: "#fff8e1", border: "1px solid #ffb74d" }}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-lg">⚠️</span>
+                  <span className="font-semibold text-sm" style={{ color: "var(--ink)" }}>
+                    Alerta para o Comprador
+                  </span>
+                </div>
+                <p className="text-sm" style={{ color: "var(--ink)" }}>
+                  {analysis.alerta_comprador}
+                </p>
+              </div>
+            )}
+
+            {/* Resumo de débitos (se disponível) */}
+            {analysis.resumo_dividas && (
+              <div>
+                <h4 className="text-xs uppercase tracking-wider font-semibold mb-2" style={{ color: "var(--mid)" }}>
+                  Resumo dos Débitos
+                </h4>
+                <p className="text-sm leading-relaxed" style={{ color: "var(--ink)" }}>
+                  {analysis.resumo_dividas}
+                </p>
+              </div>
+            )}
 
             {/* Riscos detalhados */}
             {analysis.riscos_detalhados?.length > 0 && (
