@@ -9,6 +9,7 @@ import { AnalysisPanel } from "@/components/AnalysisPanel";
 import { formatBRL, formatPercent, formatDate } from "@/lib/utils";
 import { useNotifications } from "@/lib/notifications";
 import { LegalReport } from "@/components/LegalReport";
+import { PreBidChecklist } from "@/components/PreBidChecklist";
 import type { PropertyDetail, Analysis } from "@/types";
 
 interface PageProps {
@@ -22,7 +23,7 @@ export default function ImovelPage({ params }: PageProps) {
   const [error, setError] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analyzeMsg, setAnalyzeMsg] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"resumo" | "analise" | "juridico">("resumo");
+  const [activeTab, setActiveTab] = useState<"resumo" | "analise" | "juridico" | "checklist">("resumo");
   const { addNotification } = useNotifications();
 
   useEffect(() => {
@@ -228,7 +229,7 @@ export default function ImovelPage({ params }: PageProps) {
         <div className="lg:col-span-2 space-y-6">
           {/* Tabs */}
           <div className="flex border-b" style={{ borderColor: "var(--border)" }}>
-            {(["resumo", "analise", "juridico"] as const).map((tab) => (
+            {(["resumo", "analise", "juridico", "checklist"] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -238,7 +239,7 @@ export default function ImovelPage({ params }: PageProps) {
                   color: activeTab === tab ? "var(--gold)" : "var(--mid)",
                 }}
               >
-                {tab === "resumo" ? "📊 Resumo" : tab === "analise" ? "🤖 Análise IA" : "⚖️ Jurídico"}
+                {tab === "resumo" ? "📊 Resumo" : tab === "analise" ? "🤖 Análise IA" : tab === "juridico" ? "⚖️ Jurídico" : "✅ Checklist"}
                 {tab === "analise" && property.analyses?.length > 0 && (
                   <span
                     className="ml-1.5 text-xs px-1.5 py-0.5 rounded-full"
@@ -371,6 +372,14 @@ export default function ImovelPage({ params }: PageProps) {
               urlMatricula={property.url_matricula}
               urlEdital={property.url_edital}
               linkAcesso={property.link_acesso}
+            />
+          )}
+
+          {/* Tab: Checklist */}
+          {activeTab === "checklist" && (
+            <PreBidChecklist
+              property={property}
+              analysis={property.analyses?.[0]}
             />
           )}
         </div>
